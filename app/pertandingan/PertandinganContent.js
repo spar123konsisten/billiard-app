@@ -116,7 +116,9 @@ export default function PertandinganContent() {
     if (sent === 'true') {
       setShowSuccess(true);
       if (waLink) {
-        window.open(waLink, '_blank');
+        // ✅ PERBAIKAN: buka langsung tanpa popup
+        window.location.href = waLink;
+        // Hapus parameter dari URL setelah membuka WA
         const url = new URL(window.location);
         url.searchParams.delete('sent');
         url.searchParams.delete('wa');
@@ -143,7 +145,8 @@ export default function PertandinganContent() {
     });
     const result = await res.json();
     if (result.success && result.waLink) {
-      window.open(result.waLink, '_blank');
+      // ✅ PERBAIKAN: buka langsung tanpa popup
+      window.location.href = result.waLink;
       fetchAjakan();
     } else {
       alert('Gagal menerima ajakan: ' + (result.error || ''));
@@ -166,7 +169,8 @@ export default function PertandinganContent() {
     });
     const result = await res.json();
     if (result.success && result.waLink) {
-      window.open(result.waLink, '_blank');
+      // ✅ PERBAIKAN: buka langsung tanpa popup
+      window.location.href = result.waLink;
       fetchAjakan();
     } else {
       alert('Gagal menolak ajakan: ' + (result.error || ''));
