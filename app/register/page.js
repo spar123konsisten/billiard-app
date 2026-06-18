@@ -10,7 +10,16 @@ export default function RegisterPage() {
   const [message, setMessage] = useState(null);
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    // Jika field noWa dan value diawali '0' dan panjang > 1, ubah jadi '62' + sisanya
+    if (name === 'noWa') {
+      if (value.startsWith('0') && value.length > 1) {
+        const newValue = '62' + value.slice(1);
+        setForm({ ...form, [name]: newValue });
+        return;
+      }
+    }
+    setForm({ ...form, [name]: value });
   };
 
   const handleSubmit = async (e) => {

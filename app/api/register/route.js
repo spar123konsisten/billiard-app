@@ -39,7 +39,7 @@ function isValidUsername(username) {
 
 function isValidWhatsApp(noWa) {
   const cleaned = noWa.replace(/\s|-/g, '');
-  return /^(08|\+62)[0-9]{8,14}$/.test(cleaned);
+  return /^(08|\+62|62)[0-9]{8,14}$/.test(cleaned);
 }
 
 function isValidPassword(password) {
@@ -69,7 +69,7 @@ export async function POST(req) {
       return new Response(JSON.stringify({ error: 'Username hanya boleh huruf, angka, underscore (3-20 karakter)' }), { status: 400 });
     }
     if (!isValidWhatsApp(sanitizedNoWa)) {
-      return new Response(JSON.stringify({ error: 'Nomor WhatsApp tidak valid (contoh: 08xxxxxxxxx atau +628xxxxxxxxx)' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Nomor WhatsApp tidak valid (contoh: 08xxxxxxxxx, 628xxxxxxxxx, atau +628xxxxxxxxx)' }), { status: 400 });
     }
     if (!isValidPassword(password)) {
       return new Response(JSON.stringify({ error: 'Password minimal 6 karakter' }), { status: 400 });
@@ -109,7 +109,7 @@ export async function POST(req) {
       return new Response(JSON.stringify({ error: 'Registrasi gagal, coba lagi' }), { status: 500 });
     }
 
-    // Generate token verifikasi menggunakan crypto bawaan Node.js
+    // Generate token verifikasi
     const token = crypto.randomUUID();
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
@@ -125,8 +125,7 @@ export async function POST(req) {
 
     if (tokenError) console.error('Token insert error:', tokenError);
 
-    // Kirim respons sukses
-    return new Response(JSON.stringify({ message: 'Pendaftaran berhasil, lihat link verifikasi di whatsapp kamu' }), { status: 200 });
+    return new Response(JSON.stringify({ message: 'Pendaftaran berhasil, tunggu verifikasi' }), { status: 200 });
   } catch (error) {
     console.error('Server error:', error);
     return new Response(JSON.stringify({ error: 'Terjadi kesalahan server' }), { status: 500 });
