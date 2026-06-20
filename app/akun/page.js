@@ -29,7 +29,8 @@ export default function AkunPage() {
         const res = await fetch('/api/user/profile');
         if (!res.ok) {
           if (res.status === 401) {
-            router.push('/login');
+            // Redirect cepat tanpa flash halaman
+            window.location.href = '/login';
             return;
           }
           const errorText = await res.text();
@@ -46,7 +47,7 @@ export default function AkunPage() {
       }
     };
     fetchProfile();
-  }, [router]);
+  }, []);
 
   const handleInputChange = (field, value) => {
     setProfile(prev => ({ ...prev, [field]: value }));
@@ -87,7 +88,6 @@ export default function AkunPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validasi tipe file
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       setMessage({ text: 'Format file harus JPG, PNG, atau WEBP', type: 'error' });
@@ -110,7 +110,6 @@ export default function AkunPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        // Update profile state dengan foto baru
         setProfile(prev => ({ ...prev, fotoUrl: data.fotoUrl }));
         setMessage({ text: 'Foto profil berhasil diubah', type: 'success' });
       } else {
@@ -120,7 +119,6 @@ export default function AkunPage() {
       setMessage({ text: 'Terjadi kesalahan saat upload', type: 'error' });
     } finally {
       setUploading(false);
-      // reset input file
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -130,10 +128,13 @@ export default function AkunPage() {
     alert('Link disalin!');
   };
 
-  const handleKeluar = () => {
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    router.push('/login');
-  };
+  // ===== PERBAIKAN LOGOUT =====
+const handleKeluar = async () => {
+  // Panggil API logout untuk hapus cookie httpOnly
+  await fetch('/api/logout', { method: 'POST' });
+  // Redirect ke login dengan reload penuh
+  window.location.href = '/login';
+};
 
   if (loading) {
     return (

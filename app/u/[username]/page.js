@@ -143,7 +143,7 @@ export default async function UserProfilePage({ params }) {
   return (
     <main style={{ maxWidth: '420px', margin: '0 auto', padding: '24px 16px', fontFamily: 'sans-serif' }}>
       {/* Tombol kembali */}
-      <a href="/" style={{ display: 'inline-block', marginBottom: '24px', fontSize: '13px', color: '#888', textDecoration: 'none', borderBottom: '0.5px solid #e5e5e5', paddingBottom: '4px' }}>
+      <a href="/home" style={{ display: 'inline-block', marginBottom: '24px', fontSize: '13px', color: '#888', textDecoration: 'none', borderBottom: '0.5px solid #e5e5e5', paddingBottom: '4px' }}>
         ← Kembali
       </a>
 
