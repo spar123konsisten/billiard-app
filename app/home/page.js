@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const [jumlahAjakan, setJumlahAjakan] = useState(0);
   const [players, setPlayers] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [viewMode, setViewMode] = useState('list'); // 'list' atau 'grid'
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -101,53 +102,160 @@ export default function DashboardPage() {
         </div>
       </Link>
 
-      {/* Player cari lawan - GLOBAL (semua user) */}
+      {/* Player cari lawan - dengan toggle view */}
       <div style={{ marginBottom: '32px' }}>
-        <h2
+        <div
           style={{
-            fontSize: '14px',
-            fontWeight: '500',
-            letterSpacing: '1px',
-            textTransform: 'uppercase',
-            color: '#aaa',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             marginBottom: '12px',
           }}
         >
-          PLAYER CARI LAWAN
-        </h2>
-        {players.length === 0 && <p style={{ fontSize: '13px', color: '#888' }}>Belum ada pemain.</p>}
-        {players.slice(0, 5).map((p) => (
-          <div
-            key={p.seed}
+          <h2
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '10px 0',
-              borderBottom: '0.5px solid #e5e5e5',
+              fontSize: '14px',
+              fontWeight: '500',
+              letterSpacing: '1px',
+              textTransform: 'uppercase',
+              color: '#aaa',
             }}
           >
-            <img
-              src={p.foto || `https://picsum.photos/seed/${p.seed}/40/40`}
-              alt={p.nama}
+            PLAYER CARI LAWAN
+          </h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setViewMode('list')}
               style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '0',
-                objectFit: 'cover',
+                padding: '2px 8px',
+                fontSize: '12px',
+                background: viewMode === 'list' ? '#000' : '#fff',
+                color: viewMode === 'list' ? '#fff' : '#888',
+                border: '0.5px solid #e5e5e5',
+                borderRadius: '4px',
+                cursor: 'pointer',
               }}
-            />
-            <div>
-              <Link href={`/u/${p.username}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-  <div style={{ fontWeight: '600', fontSize: '14px' }}>{p.nama}</div>
-</Link>
-              <div style={{ fontSize: '12px', color: '#666' }}>
-                {p.rank} · {p.kota}
-              </div>
-            </div>
+            >
+              List
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              style={{
+                padding: '2px 8px',
+                fontSize: '12px',
+                background: viewMode === 'grid' ? '#000' : '#fff',
+                color: viewMode === 'grid' ? '#fff' : '#888',
+                border: '0.5px solid #e5e5e5',
+                borderRadius: '4px',
+                cursor: 'pointer',
+              }}
+            >
+              Grid
+            </button>
           </div>
-        ))}
-        {players.length > 5 && (
+        </div>
+
+        {players.length === 0 && <p style={{ fontSize: '13px', color: '#888' }}>Belum ada pemain.</p>}
+
+        {/* LIST VIEW */}
+        {viewMode === 'list' && (
+          <>
+            {players.slice(0, 5).map((p) => (
+              <div
+                key={p.seed}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '10px 0',
+                  borderBottom: '0.5px solid #e5e5e5',
+                }}
+              >
+                <img
+                  src={p.foto || `https://picsum.photos/seed/${p.seed}/40/40`}
+                  alt={p.nama}
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '0',
+                    objectFit: 'cover',
+                  }}
+                />
+                <div>
+                  <Link href={`/u/${p.username}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div style={{ fontWeight: '600', fontSize: '14px' }}>{p.nama}</div>
+                  </Link>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    {p.rank} · {p.kota}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* GRID VIEW - 2 kolom seperti thumbnail YouTube */}
+        {viewMode === 'grid' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '12px',
+            }}
+          >
+            {players.slice(0, 6).map((p) => (
+              <Link
+                key={p.seed}
+                href={`/u/${p.username}`}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
+                <div
+                  style={{
+                    border: '0.5px solid #e5e5e5',
+                    borderRadius: '4px',
+                    padding: '8px',
+                    background: '#fff',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <img
+                    src={p.foto || `https://picsum.photos/seed/${p.seed}/160/120`}
+                    alt={p.nama}
+                    style={{
+                      width: '100%',
+                      height: 'auto',
+                      aspectRatio: '4/3',
+                      objectFit: 'cover',
+                      borderRadius: '4px',
+                      marginBottom: '6px',
+                    }}
+                  />
+                  <div style={{ fontWeight: '600', fontSize: '13px', marginBottom: '2px' }}>
+                    {p.nama}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#666', marginBottom: '2px' }}>
+                    {p.kota || '-'}
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#888' }}>
+                    {p.rank}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {players.length > 5 && viewMode === 'list' && (
+          <div style={{ marginTop: '12px', textAlign: 'right' }}>
+            <Link
+              href="/cari-lawan"
+              style={{ fontSize: '13px', color: '#000', textDecoration: 'underline' }}
+            >
+              Lihat semua player →
+            </Link>
+          </div>
+        )}
+        {players.length > 6 && viewMode === 'grid' && (
           <div style={{ marginTop: '12px', textAlign: 'right' }}>
             <Link
               href="/cari-lawan"
