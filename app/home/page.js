@@ -12,7 +12,7 @@ export default function DashboardPage() {
   const [jumlahAjakan, setJumlahAjakan] = useState(0);
   const [players, setPlayers] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [viewMode, setViewMode] = useState('list'); // 'list' atau 'grid'
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -53,6 +53,10 @@ export default function DashboardPage() {
       </main>
     );
   }
+
+  const toggleView = () => {
+    setViewMode(viewMode === 'list' ? 'grid' : 'list');
+  };
 
   return (
     <main
@@ -102,16 +106,9 @@ export default function DashboardPage() {
         </div>
       </Link>
 
-      {/* Player cari lawan - dengan toggle view */}
+      {/* Player cari lawan dengan toggle view */}
       <div style={{ marginBottom: '32px' }}>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '12px',
-          }}
-        >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <h2
             style={{
               fontSize: '14px',
@@ -123,54 +120,37 @@ export default function DashboardPage() {
           >
             PLAYER CARI LAWAN
           </h2>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => setViewMode('list')}
-              style={{
-                padding: '2px 8px',
-                fontSize: '12px',
-                background: viewMode === 'list' ? '#000' : '#fff',
-                color: viewMode === 'list' ? '#fff' : '#888',
-                border: '0.5px solid #e5e5e5',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              List
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              style={{
-                padding: '2px 8px',
-                fontSize: '12px',
-                background: viewMode === 'grid' ? '#000' : '#fff',
-                color: viewMode === 'grid' ? '#fff' : '#888',
-                border: '0.5px solid #e5e5e5',
-                borderRadius: '4px',
-                cursor: 'pointer',
-              }}
-            >
-              Grid
-            </button>
-          </div>
+          <button
+            onClick={toggleView}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '12px',
+              color: '#888',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+            }}
+          >
+            {viewMode === 'list' ? 'Grid □' : 'List ↓'}
+          </button>
         </div>
 
         {players.length === 0 && <p style={{ fontSize: '13px', color: '#888' }}>Belum ada pemain.</p>}
 
-        {/* LIST VIEW */}
-        {viewMode === 'list' && (
-          <>
-            {players.slice(0, 5).map((p) => (
-              <div
-                key={p.seed}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  padding: '10px 0',
-                  borderBottom: '0.5px solid #e5e5e5',
-                }}
-              >
+        {viewMode === 'list' ? (
+          // LIST VIEW (existing style)
+          players.slice(0, 5).map((p) => (
+            <div
+              key={p.seed}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '10px 0',
+                borderBottom: '0.5px solid #e5e5e5',
+              }}
+            >
+              <Link href={`/u/${p.username}`} style={{ textDecoration: 'none' }}>
                 <img
                   src={p.foto || `https://picsum.photos/seed/${p.seed}/40/40`}
                   alt={p.nama}
@@ -179,23 +159,22 @@ export default function DashboardPage() {
                     height: '40px',
                     borderRadius: '0',
                     objectFit: 'cover',
+                    cursor: 'pointer',
                   }}
                 />
-                <div>
-                  <Link href={`/u/${p.username}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <div style={{ fontWeight: '600', fontSize: '14px' }}>{p.nama}</div>
-                  </Link>
-                  <div style={{ fontSize: '12px', color: '#666' }}>
-                    {p.rank} · {p.kota}
-                  </div>
+              </Link>
+              <div>
+                <Link href={`/u/${p.username}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <div style={{ fontWeight: '600', fontSize: '14px' }}>{p.nama}</div>
+                </Link>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  {p.rank} · {p.kota}
                 </div>
               </div>
-            ))}
-          </>
-        )}
-
-        {/* GRID VIEW - 2 kolom seperti thumbnail YouTube */}
-        {viewMode === 'grid' && (
+            </div>
+          ))
+        ) : (
+          // GRID VIEW (thumbnail 2 kolom)
           <div
             style={{
               display: 'grid',
@@ -207,7 +186,7 @@ export default function DashboardPage() {
               <Link
                 key={p.seed}
                 href={`/u/${p.username}`}
-                style={{ textDecoration: 'none', color: 'inherit' }}
+                style={{ textDecoration: 'none' }}
               >
                 <div
                   style={{
@@ -230,14 +209,11 @@ export default function DashboardPage() {
                       marginBottom: '6px',
                     }}
                   />
-                  <div style={{ fontWeight: '600', fontSize: '13px', marginBottom: '2px' }}>
+                  <div style={{ fontWeight: '600', fontSize: '13px', color: '#000' }}>
                     {p.nama}
                   </div>
-                  <div style={{ fontSize: '10px', color: '#666', marginBottom: '2px' }}>
-                    {p.kota || '-'}
-                  </div>
-                  <div style={{ fontSize: '10px', color: '#888' }}>
-                    {p.rank}
+                  <div style={{ fontSize: '10px', color: '#666' }}>
+                    {p.rank} · {p.kota}
                   </div>
                 </div>
               </Link>
@@ -267,7 +243,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Aktivitas terbaru - GLOBAL (semua aktivitas) */}
+      {/* Aktivitas terbaru */}
       <div style={{ marginBottom: '32px' }}>
         <h2
           style={{
