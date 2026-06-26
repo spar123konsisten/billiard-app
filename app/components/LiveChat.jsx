@@ -27,7 +27,6 @@ export default function LiveChat({ initialMessages, onlineCount, username: propU
     return colors[Math.abs(hash) % colors.length];
   };
 
-  // FIX timezone: paksa parse sebagai UTC dengan tambah 'Z'
   const formatRelativeTime = (dateStr) => {
     const dateUTC = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
     const now = new Date();
@@ -85,8 +84,6 @@ export default function LiveChat({ initialMessages, onlineCount, username: propU
         foto_url: photoMap[msg.username?.toLowerCase()] || null,
       }));
 
-      // FIX: hapus .reverse() — biarkan descending (newest di index 0)
-      // column-reverse sudah handle tampilan: index 0 = paling bawah
       setMessages(formatted);
       setLoading(false);
     } catch (err) {
@@ -144,8 +141,6 @@ export default function LiveChat({ initialMessages, onlineCount, username: propU
         (payload) => {
           const newMsg = payload.new;
           const fotoUrl = userPhotoMapRef.current[newMsg.username?.toLowerCase()] || null;
-
-          // pesan baru di index 0 = tampil paling bawah di column-reverse
           setMessages((prev) => [
             {
               id: newMsg.id,
@@ -202,19 +197,31 @@ export default function LiveChat({ initialMessages, onlineCount, username: propU
             const bgColor = getAvatarColor(msg.user);
             return (
               <div key={msg.id} style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {fotoUrl ? (
-                  <img
-                    src={fotoUrl}
-                    alt={msg.user}
-                    style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                  />
-                ) : (
-                  <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: bgColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '10px', fontWeight: '600', flexShrink: 0 }}>
-                    {initials}
-                  </div>
-                )}
+
+                {/* FOTO → link ke /u/username */}
+                <Link href={`/u/${msg.user}`} style={{ flexShrink: 0, textDecoration: 'none' }}>
+                  {fotoUrl ? (
+                    <img
+                      src={fotoUrl}
+                      alt={msg.user}
+                      style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                    />
+                  ) : (
+                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: bgColor, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '10px', fontWeight: '600' }}>
+                      {initials}
+                    </div>
+                  )}
+                </Link>
+
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flexWrap: 'wrap', flex: 1 }}>
-                  <span style={{ fontWeight: '600', fontSize: '13px', color: '#000', whiteSpace: 'nowrap' }}>{msg.user}</span>
+
+                  {/* USERNAME → link ke /u/username */}
+                  <Link href={`/u/${msg.user}`} style={{ textDecoration: 'none' }}>
+                    <span style={{ fontWeight: '600', fontSize: '13px', color: '#000', whiteSpace: 'nowrap' }}>
+                      {msg.user}
+                    </span>
+                  </Link>
+
                   <span style={{ fontSize: '9px', color: '#aaa' }}>{msg.waktu}</span>
                   <span style={{ fontSize: '13px', color: '#333', background: '#fff', padding: '2px 6px', borderRadius: '3px', border: '0.5px solid #e5e5e5', flex: '1', wordBreak: 'break-word' }}>
                     {msg.message}
