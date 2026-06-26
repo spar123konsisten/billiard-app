@@ -27,13 +27,13 @@ export default function LiveChat({ initialMessages, onlineCount, username: propU
     return colors[Math.abs(hash) % colors.length];
   };
 
-  // FIX 1: tambah diffMin <= 0 untuk handle timezone WIB vs UTC
+  // FIX timezone: paksa parse sebagai UTC dengan tambah 'Z'
   const formatRelativeTime = (dateStr) => {
-    const date = new Date(dateStr);
+    const dateUTC = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
     const now = new Date();
-    const diffMs = now - date;
+    const diffMs = now - dateUTC;
     const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin <= 0) return 'baru saja'; // fix timezone WIB UTC+7
+    if (diffMin <= 0) return 'baru saja';
     if (diffMin < 60) return `${diffMin} mnt`;
     if (diffMin < 1440) return `${Math.floor(diffMin / 60)} jam`;
     return `${Math.floor(diffMin / 1440)} hari`;
@@ -85,8 +85,9 @@ export default function LiveChat({ initialMessages, onlineCount, username: propU
         foto_url: photoMap[msg.username?.toLowerCase()] || null,
       }));
 
-      // ascending: false dari DB, lalu di-reverse = oldest di atas, newest di bawah
-      setMessages(formatted.reverse());
+      // FIX: hapus .reverse() — biarkan descending (newest di index 0)
+      // column-reverse sudah handle tampilan: index 0 = paling bawah
+      setMessages(formatted);
       setLoading(false);
     } catch (err) {
       console.error('Fetch error:', err);
@@ -144,8 +145,7 @@ export default function LiveChat({ initialMessages, onlineCount, username: propU
           const newMsg = payload.new;
           const fotoUrl = userPhotoMapRef.current[newMsg.username?.toLowerCase()] || null;
 
-          // FIX 2: pesan baru di index 0 karena container column-reverse
-          // index 0 = tampil paling BAWAH di column-reverse
+          // pesan baru di index 0 = tampil paling bawah di column-reverse
           setMessages((prev) => [
             {
               id: newMsg.id,
@@ -189,7 +189,7 @@ export default function LiveChat({ initialMessages, onlineCount, username: propU
           </div>
         </div>
 
-        {/* Messages - column-reverse: index 0 = paling bawah */}
+        {/* Messages */}
         <div style={{ padding: '6px 12px', height: '400px', overflowY: 'auto', background: '#ffffff', boxSizing: 'border-box', display: 'flex', flexDirection: 'column-reverse' }}>
           {messages.length === 0 && (
             <div style={{ textAlign: 'center', color: '#999', fontSize: '11px', padding: '20px 0' }}>
