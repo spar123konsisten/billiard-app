@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import LiveChat from '@/app/components/LiveChat'; // import LiveChat
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -138,7 +139,6 @@ export default function DashboardPage() {
         {players.length === 0 && <p style={{ fontSize: '13px', color: '#888' }}>Belum ada pemain.</p>}
 
         {viewMode === 'list' ? (
-          // LIST VIEW (existing style)
           players.slice(0, 5).map((p) => (
             <div
               key={p.seed}
@@ -174,7 +174,6 @@ export default function DashboardPage() {
             </div>
           ))
         ) : (
-          // GRID VIEW (thumbnail 2 kolom)
           <div
             style={{
               display: 'grid',
@@ -242,6 +241,12 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ===== LIVE CHAT GLOBAL (DITAMBAHKAN DI SINI) ===== */}
+      <LiveChat 
+        username={user?.nama || ''} 
+        onlineCount={3} 
+      />
 
       {/* Aktivitas terbaru */}
       <div style={{ marginBottom: '32px' }}>
