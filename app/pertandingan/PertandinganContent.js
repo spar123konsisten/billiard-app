@@ -347,7 +347,9 @@ export default function PertandinganContent() {
           top: 0,
         }}
       >
-<div style={{ fontSize:'10px', fontWeight:'600', letterSpacing:'2px', textTransform:'uppercase', color: shareModal.matchData?.hasil==='Menang'?'#4CAF50':'#EF5350', marginBottom:'-20px' }}>
+
+
+        <div style={{ fontSize:'10px', fontWeight:'600', letterSpacing:'2px', textTransform:'uppercase', color: shareModal.matchData?.hasil==='Menang'?'#4CAF50':'#EF5350', marginBottom:'-20px' }}>
           {shareModal.matchData?.hasil || ''}
         </div>
 
@@ -355,17 +357,17 @@ export default function PertandinganContent() {
           {shareModal.matchData ? getScoreString(shareModal.matchData) : ''}
         </div>
 
-        <div style={{ fontSize:'13px', color:'rgb(255, 255, 255)', marginBottom:'8px' }}>
+        <div style={{ fontSize:'13px', color:'rgb(255, 255, 255)', marginBottom:'16px' }}>
           vs {shareModal.matchData?.opponent?.nama} · {shareModal.matchData?.opponent?.tier} {bintangStr(shareModal.matchData?.opponent?.bintang || 0)}
         </div>
-        <div style={{ width:'40px', height:'1px', background:'rgb(255, 255, 255)', marginBottom:'1px' }} />
+        <div style={{ width:'40px', height:'1px', background:'rgb(255, 255, 255)', marginBottom:'-1px' }} />
 
         <div style={{ fontSize:'13px', color:'rgb(255, 255, 255)', fontFamily:'monospace', marginBottom:'2px' }}>
           sparring.id/u/{userStats?.username || ''}
         </div>
 
         <div style={{ fontSize:'13px', color:'rgb(255, 255, 255)', letterSpacing:'1.5px', textTransform:'uppercase' }}>
-          billiard.id
+          🎱billiard.id
         </div>
       </div>
 
@@ -389,21 +391,21 @@ export default function PertandinganContent() {
 
             <button onClick={closeShare} style={{ position: 'absolute', top: '-44px', right: '0', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', fontSize: '20px', cursor: 'pointer', padding: '4px 12px', borderRadius: '20px' }}>✕</button>
 
-            <div style={{ ...hiddenCardContent, position: 'relative', margin: '0 auto', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.6)', visibility: 'visible' }}>
+            <div style={{ ...hiddenCardContent, position: 'relative', margin: '0 auto', borderRadius: '16px', boxShadow: '0 20px 60px rgb(0, 0, 0)', visibility: 'visible' }}>
               <div style={{ fontSize: '10px', fontWeight: '600', letterSpacing: '2px', textTransform: 'uppercase', color: shareModal.matchData.hasil === 'Menang' ? '#4CAF50' : '#EF5350', marginBottom: '4px' }}>
                 {shareModal.matchData.hasil}
               </div>
               <div style={{ fontSize: '72px', fontWeight: '700', lineHeight: 1, letterSpacing: '-2px', marginBottom: '6px' }}>
                 {getScoreString(shareModal.matchData)}
               </div>
-              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '8px' }}>
+              <div style={{ fontSize: '13px', color: 'rgb(255, 255, 255)', marginBottom: '8px' }}>
                 vs {shareModal.matchData.opponent?.nama} · {shareModal.matchData.opponent?.tier} {bintangStr(shareModal.matchData.opponent?.bintang || 0)}
               </div>
-              <div style={{ width: '40px', height: '1px', background: 'rgba(255,255,255,0.2)', marginBottom: '9px' }} />
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace', marginBottom: '2px' }}>
+              <div style={{ width: '40px', height: '1px', background: 'rgb(255, 255, 255)', marginBottom: '9px' }} />
+              <div style={{ fontSize: '11px', color: 'rgb(255, 255, 255)', fontFamily: 'monospace', marginBottom: '2px' }}>
                 sparring.id/u/{userStats?.username || ''}
               </div>
-              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.18)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+              <div style={{ fontSize: '10px', color: 'rgb(255, 255, 255)', letterSpacing: '1.5px', textTransform: 'uppercase' }}>🎱
                 billiard.id
               </div>
             </div>
