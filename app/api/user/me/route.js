@@ -10,25 +10,26 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    // 1. Ambil token dari cookie
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
+
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Verify JWT
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log('decoded JWT:', decoded); // ← tambah ini
     } catch {
       return NextResponse.json({ error: 'Token invalid' }, { status: 401 });
     }
 
-    const userId = decoded.user_id;
+    // Ambil user_id dari berbagai kemungkinan field
+    const userId = decoded.user_id || decoded.id || decoded.sub || decoded.userId;
+    if (!userId) {
+      return NextResponse.json({ error: 'user_id tidak ditemukan di token' }, { status: 401 });
+    }
 
-    // 3. Ambil data user
     const { data: user, error: userError } = await supabase
       .from('users')
       .select('nama, username, kota, foto_url')
@@ -36,24 +37,21 @@ export async function GET() {
       .single();
 
     if (userError || !user) {
-      return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 });
+      return NextResponse.json({ error: 'User tidak ditemukan', detail: userError?.message }, { status: 404 });
     }
 
-    // 4. Ambil rank
     const { data: rank } = await supabase
       .from('rank')
       .select('tier, bintang, streak')
       .eq('user_id', userId)
       .single();
 
-    // 5. Hitung total match done
     const { count: totalMatch } = await supabase
       .from('pertandingan')
       .select('*', { count: 'exact', head: true })
       .or(`challenger_id.eq.${userId},challenged_id.eq.${userId}`)
       .eq('status', 'done');
 
-    // 6. Hitung total menang dari table skor
     const { count: totalMenang } = await supabase
       .from('skor')
       .select('*', { count: 'exact', head: true })
@@ -61,22 +59,20 @@ export async function GET() {
       .eq('confirmed', true)
       .filter('skor_sendiri', 'gt', 'skor_lawan');
 
-    const winrate = totalMatch > 0
-      ? Math.round((totalMenang / totalMatch) * 100)
+    const winrate = (totalMatch || 0) > 0
+      ? Math.round(((totalMenang || 0) / totalMatch) * 100)
       : 0;
 
-    // 7. Hitung rank_kota
-    // Ambil semua user di kota yang sama
-    const { data: kotaUsers } = await supabase
-      .from('rank')
-      .select('user_id, tier, bintang')
-      .in('user_id',
-        (await supabase
-          .from('users')
-          .select('id')
-          .eq('kota', user.kota)
-        ).data?.map(u => u.id) || []
-      );
+    const { data: kotaUserIds } = await supabase
+      .from('users')
+      .select('id')
+      .eq('kota', user.kota);
+
+    const ids = (kotaUserIds || []).map(u => u.id);
+
+    const { data: kotaUsers } = ids.length > 0
+      ? await supabase.from('rank').select('user_id, tier, bintang').in('user_id', ids)
+      : { data: [] };
 
     const TIER_ORDER = ['rintis', 'isen', 'menteng', 'amok', 'tuah', 'maung', 'sura'];
 
@@ -101,10 +97,7 @@ export async function GET() {
     });
 
   } catch (err) {
-  console.error('Error /api/user/me:', err.message, err.stack);
-  return NextResponse.json({ error: err.message }, { status: 500 });
-  console.log('JWT_SECRET exists:', !!process.env.JWT_SECRET);
-console.log('token exists:', !!token);
-}
-
+    console.error('Error /api/user/me:', err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }
