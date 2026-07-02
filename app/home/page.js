@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import LiveChat from '@/app/components/LiveChat'; // import LiveChat
+import LiveChat from '@/app/components/LiveChat';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -13,7 +13,7 @@ export default function DashboardPage() {
   const [jumlahAjakan, setJumlahAjakan] = useState(0);
   const [players, setPlayers] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [viewMode, setViewMode] = useState('grid');
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -107,7 +107,7 @@ export default function DashboardPage() {
         </div>
       </Link>
 
-      {/* Player cari lawan dengan toggle view */}
+      {/* Player cari lawan */}
       <div style={{ marginBottom: '32px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <h2
@@ -242,11 +242,8 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ===== LIVE CHAT GLOBAL (DITAMBAHKAN DI SINI) ===== */}
-      <LiveChat 
-        username={user?.nama || ''} 
-        onlineCount={3} 
-      />
+      {/* Live Chat Global */}
+      <LiveChat username={user?.nama || ''} onlineCount={3} />
 
       {/* Aktivitas terbaru */}
       <div style={{ marginBottom: '32px' }}>
@@ -268,43 +265,61 @@ export default function DashboardPage() {
             key={idx}
             style={{
               display: 'flex',
-              alignItems: 'center',
+              alignItems: 'stretch',
               gap: '12px',
               padding: '10px 0',
-              borderBottom:
-                idx < activities.length - 1 ? '0.5px solid #e5e5e5' : 'none',
+              borderBottom: idx < activities.length - 1 ? '0.5px solid #e5e5e5' : 'none',
             }}
           >
-            <img
-              src={`https://picsum.photos/seed/${act.seed}/40/40`}
-              alt={act.nama}
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '0',
-                objectFit: 'cover',
-              }}
-            />
-            <div style={{ flex: 1 }}>
-              <div>
-                <strong>{act.nama}</strong> {act.aksi}
-                {act.rank && (
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      border: '0.5px solid #e5e5e5',
-                      padding: '1px 5px',
-                      marginLeft: '6px',
-                      color: '#888',
-                    }}
-                  >
-                    {act.rank}
-                  </span>
-                )}
+            {/* Kiri: foto + tier */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+              <img
+                src={act.foto || `https://picsum.photos/seed/${act.seed}/56/56`}
+                alt={act.nama}
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '4px',
+                  objectFit: 'cover',
+                }}
+              />
+              <span style={{ fontSize: '10px', color: '#888', textAlign: 'center' }}>{act.winnerRank || '-'}</span>
+            </div>
+
+            {/* Tengah: nama, vs, skor, waktu */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+              {/* Baris 1: Nama kiri & kanan */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <span style={{ fontWeight: '600', fontSize: '14px' }}>{act.nama}</span>
+                <span style={{ fontWeight: '600', fontSize: '14px' }}>{act.lawanNama}</span>
               </div>
-              <div style={{ fontSize: '11px', color: '#aaa', marginTop: '2px' }}>
+
+              {/* Baris 2: vs di tengah, skor di bawah nama (kiri/kanan) */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: '2px', position: 'relative' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#000' }}>{act.skorSendiri}</span>
+                <span style={{ fontSize: '13px', color: '#666', fontWeight: '500', position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}>vs</span>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#000' }}>{act.skorLawan}</span>
+              </div>
+
+              {/* Baris 3: Waktu */}
+              <div style={{ fontSize: '12px', color: '#aaa', marginTop: '4px', textAlign: 'center' }}>
                 {act.waktu}
               </div>
+            </div>
+
+            {/* Kanan: foto + tier */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+              <img
+                src={act.lawanFoto || `https://picsum.photos/seed/${act.lawanId || act.seed + 'lawan'}/56/56`}
+                alt={act.lawanNama || 'lawan'}
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '4px',
+                  objectFit: 'cover',
+                }}
+              />
+              <span style={{ fontSize: '10px', color: '#888', textAlign: 'center' }}>{act.loserRank || '-'}</span>
             </div>
           </div>
         ))}
@@ -324,51 +339,31 @@ export default function DashboardPage() {
           margin: '0 auto',
           display: 'flex',
           justifyContent: 'space-around',
+          zIndex: 100,
         }}
       >
         <Link href="/home" style={{ textDecoration: 'none', textAlign: 'center' }}>
           <div style={{ textAlign: 'center', cursor: 'pointer' }}>
             <div style={{ fontSize: '20px', filter: 'grayscale(1)' }}>🏠</div>
-            <div
-              style={{
-                fontSize: '11px',
-                fontWeight: '600',
-                color: '#000',
-                marginTop: '2px',
-              }}
-            >
-              Home
-            </div>
+            <div style={{ fontSize: '11px', fontWeight: '600', color: '#000', marginTop: '2px' }}>Home</div>
           </div>
         </Link>
-        <Link
-          href="/ranking"
-          style={{ textDecoration: 'none', textAlign: 'center' }}
-        >
+        <Link href="/ranking" style={{ textDecoration: 'none', textAlign: 'center' }}>
           <div style={{ textAlign: 'center', cursor: 'pointer' }}>
             <div style={{ fontSize: '20px', filter: 'grayscale(1)' }}>🏆</div>
-            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
-              Ranking
-            </div>
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>Ranking</div>
           </div>
         </Link>
-        <Link
-          href="/pertandingan"
-          style={{ textDecoration: 'none', textAlign: 'center' }}
-        >
+        <Link href="/pertandingan" style={{ textDecoration: 'none', textAlign: 'center' }}>
           <div style={{ textAlign: 'center', cursor: 'pointer' }}>
             <div style={{ fontSize: '20px', filter: 'grayscale(1)' }}>⚔️</div>
-            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
-              Pertandingan
-            </div>
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>Pertandingan</div>
           </div>
         </Link>
         <Link href="/akun" style={{ textDecoration: 'none', textAlign: 'center' }}>
           <div style={{ textAlign: 'center', cursor: 'pointer' }}>
             <div style={{ fontSize: '20px', filter: 'grayscale(1)' }}>👤</div>
-            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
-              Akun
-            </div>
+            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>Akun</div>
           </div>
         </Link>
       </div>

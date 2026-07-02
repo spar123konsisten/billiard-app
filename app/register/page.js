@@ -6,6 +6,7 @@ export default function RegisterPage() {
   const [form, setForm] = useState({
     namaLengkap: '', nick: '', noWa: '', kota: '', lokasiFavorit: '', password: ''
   });
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
 
@@ -26,6 +27,20 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+
+    // Validasi password: minimal 1 huruf besar, 1 angka, 1 simbol
+    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).+$/;
+    if (!passwordRegex.test(form.password)) {
+      setMessage({ type: 'error', text: 'Password harus mengandung huruf besar, angka, dan simbol.' });
+      setLoading(false);
+      return;
+    }
+    if (form.password !== confirmPassword) {
+      setMessage({ type: 'error', text: 'Password dan konfirmasi password tidak sama.' });
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/register', {
         method: 'POST',
@@ -36,6 +51,7 @@ export default function RegisterPage() {
       if (res.ok) {
         setMessage({ type: 'success', text: data.message });
         setForm({ namaLengkap: '', nick: '', noWa: '', kota: '', lokasiFavorit: '', password: '' });
+        setConfirmPassword('');
       } else {
         setMessage({ type: 'error', text: data.error });
       }
@@ -79,9 +95,14 @@ export default function RegisterPage() {
           <div style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '1px', color: '#888', marginBottom: '6px' }}>LOKASI MAIN FAVORIT</div>
           <input type="text" name="lokasiFavorit" value={form.lokasiFavorit} onChange={handleChange} placeholder="Misal: Golden Billiard Bekasi" style={{ width: '100%', padding: '12px', border: '0.5px solid #e5e5e5', borderRadius: '0', fontSize: '14px', outline: 'none' }} />
         </div>
-        <div style={{ marginBottom: '28px' }}>
+        <div style={{ marginBottom: '20px' }}>
           <div style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '1px', color: '#888', marginBottom: '6px' }}>PASSWORD</div>
           <input type="password" name="password" value={form.password} onChange={handleChange} placeholder="Minimal 6 karakter" required style={{ width: '100%', padding: '12px', border: '0.5px solid #e5e5e5', borderRadius: '0', fontSize: '14px', outline: 'none' }} />
+          <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>Password harus mengandung huruf besar, angka, dan simbol.</div>
+        </div>
+        <div style={{ marginBottom: '28px' }}>
+          <div style={{ fontSize: '12px', fontWeight: '500', letterSpacing: '1px', color: '#888', marginBottom: '6px' }}>KONFIRMASI PASSWORD</div>
+          <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Ulangi password" required style={{ width: '100%', padding: '12px', border: '0.5px solid #e5e5e5', borderRadius: '0', fontSize: '14px', outline: 'none' }} />
         </div>
         <button type="submit" disabled={loading} style={{ width: '100%', padding: '15px', background: '#000', color: '#fff', border: 'none', borderRadius: '0', fontSize: '15px', fontWeight: '500', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', marginBottom: '16px' }}>
           <span>{loading ? 'Memproses...' : 'Daftar sekarang'}</span><span>→</span>

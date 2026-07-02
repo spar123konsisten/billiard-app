@@ -146,19 +146,48 @@ export async function GET(req) {
     if (error) return Response.json({ error: error.message }, { status: 500 });
     if (!matches.length) return Response.json({ data: [] });
 
-    const opponentIds = matches.map(m => m.challenger_id === userId ? m.challenged_id : m.challenger_id);
-    const { data: users } = await supabaseAdmin.from('users').select('id, nama, foto_url, no_wa').in('id', opponentIds);
-    const { data: ranks } = await supabaseAdmin.from('rank').select('user_id, tier, bintang').in('user_id', opponentIds);
-    const userMap = Object.fromEntries(users?.map(u => [u.id, u]) || []);
-    const rankMap = Object.fromEntries(ranks?.map(r => [r.user_id, r]) || []);
+    const opponentIds = matches
+      .map(m => m.challenger_id === userId ? m.challenged_id : (m.challenger_id || null))
+      .filter(id => id !== null);
+    
+    let users = [], ranks = [];
+    if (opponentIds.length > 0) {
+      const { data: u } = await supabaseAdmin.from('users').select('id, nama, foto_url, no_wa').in('id', opponentIds);
+      users = u || [];
+      const { data: r } = await supabaseAdmin.from('rank').select('user_id, tier, bintang').in('user_id', opponentIds);
+      ranks = r || [];
+    }
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+    const rankMap = Object.fromEntries(ranks.map(r => [r.user_id, r]));
+
     const data = matches.map(m => {
-      const opponentId = m.challenger_id === userId ? m.challenged_id : m.challenger_id;
       const isChallenged = m.challenged_id === userId;
+      if (m.challenger_id === null) {
+        return {
+          id: m.id,
+          tanggal: m.tanggal,
+          waktu: m.waktu,
+          lokasi: m.lokasi,
+          isGuest: true,
+          opponent: {
+            id: null,
+            nama: m.guest_name || 'Guest',
+            foto_url: null,
+            no_wa: m.guest_phone || '',
+            tier: 'Guest',
+            bintang: 0,
+          },
+          userRole: 'challenged',
+        };
+      }
+
+      const opponentId = m.challenger_id === userId ? m.challenged_id : m.challenger_id;
       return {
         id: m.id,
         tanggal: m.tanggal,
         waktu: m.waktu,
         lokasi: m.lokasi,
+        isGuest: false,
         opponent: {
           id: opponentId,
           nama: userMap[opponentId]?.nama || 'Unknown',
@@ -183,22 +212,50 @@ export async function GET(req) {
     if (error) return Response.json({ error: error.message }, { status: 500 });
     if (!matches.length) return Response.json({ data: [] });
 
-    const opponentIds = matches.map(m => m.challenger_id === userId ? m.challenged_id : m.challenger_id);
-    const { data: users } = await supabaseAdmin.from('users').select('id, nama, foto_url').in('id', opponentIds);
-    const { data: ranks } = await supabaseAdmin.from('rank').select('user_id, tier, bintang').in('user_id', opponentIds);
-    const userMap = Object.fromEntries(users?.map(u => [u.id, u]) || []);
-    const rankMap = Object.fromEntries(ranks?.map(r => [r.user_id, r]) || []);
+    const opponentIds = matches
+      .map(m => m.challenger_id === userId ? m.challenged_id : (m.challenger_id || null))
+      .filter(id => id !== null);
+    let users = [], ranks = [];
+    if (opponentIds.length > 0) {
+      const { data: u } = await supabaseAdmin.from('users').select('id, nama, foto_url').in('id', opponentIds);
+      users = u || [];
+      const { data: r } = await supabaseAdmin.from('rank').select('user_id, tier, bintang').in('user_id', opponentIds);
+      ranks = r || [];
+    }
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+    const rankMap = Object.fromEntries(ranks.map(r => [r.user_id, r]));
+
     const data = matches.map(m => {
-      const opponentId = m.challenger_id === userId ? m.challenged_id : m.challenger_id;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const matchDate = new Date(m.tanggal);
       const isPast = matchDate < today;
+      
+      if (m.challenger_id === null) {
+        return {
+          id: m.id,
+          tanggal: m.tanggal,
+          waktu: m.waktu,
+          lokasi: m.lokasi,
+          isGuest: true,
+          opponent: {
+            id: null,
+            nama: m.guest_name || 'Guest',
+            foto_url: null,
+            tier: 'Guest',
+            bintang: 0,
+          },
+          reminder: isPast,
+        };
+      }
+
+      const opponentId = m.challenger_id === userId ? m.challenged_id : m.challenger_id;
       return {
         id: m.id,
         tanggal: m.tanggal,
         waktu: m.waktu,
         lokasi: m.lokasi,
+        isGuest: false,
         opponent: {
           id: opponentId,
           nama: userMap[opponentId]?.nama || 'Unknown',
@@ -215,7 +272,7 @@ export async function GET(req) {
   if (tab === 'riwayat') {
     const { data: matches, error } = await supabaseAdmin
       .from('pertandingan')
-      .select('id, tanggal, lokasi, challenger_id, challenged_id, status')
+      .select('*')
       .or(`challenger_id.eq.${userId},challenged_id.eq.${userId}`)
       .in('status', ['done', 'expired', 'rejected'])
       .order('tanggal', { ascending: false });
@@ -233,14 +290,20 @@ export async function GET(req) {
       scoreMap.get(s.match_id).push(s);
     });
 
-    const opponentIds = matches.map(m => m.challenger_id === userId ? m.challenged_id : m.challenger_id);
-    const { data: users } = await supabaseAdmin.from('users').select('id, nama, foto_url').in('id', opponentIds);
-    const { data: ranks } = await supabaseAdmin.from('rank').select('user_id, tier, bintang').in('user_id', opponentIds);
-    const userMap = Object.fromEntries(users?.map(u => [u.id, u]) || []);
-    const rankMap = Object.fromEntries(ranks?.map(r => [r.user_id, r]) || []);
+    const opponentIds = matches
+      .map(m => m.challenger_id === userId ? m.challenged_id : (m.challenger_id || null))
+      .filter(id => id !== null);
+    let users = [], ranks = [];
+    if (opponentIds.length > 0) {
+      const { data: u } = await supabaseAdmin.from('users').select('id, nama, foto_url').in('id', opponentIds);
+      users = u || [];
+      const { data: r } = await supabaseAdmin.from('rank').select('user_id, tier, bintang').in('user_id', opponentIds);
+      ranks = r || [];
+    }
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+    const rankMap = Object.fromEntries(ranks.map(r => [r.user_id, r]));
 
     const data = matches.map(m => {
-      const opponentId = m.challenger_id === userId ? m.challenged_id : m.challenger_id;
       const scores = scoreMap.get(m.id) || [];
       const userScores = scores.filter(s => s.input_by === userId);
       const opponentScores = scores.filter(s => s.input_by !== userId);
@@ -275,19 +338,37 @@ export async function GET(req) {
         }
       }
 
+      let opponentName = 'Unknown';
+      let opponentTier = '';
+      let opponentFoto = null;
+      let isGuest = false;
+
+      if (m.challenger_id === null) {
+        isGuest = true;
+        opponentName = m.guest_name || 'Guest';
+        opponentTier = 'Guest';
+      } else {
+        const oppId = m.challenger_id === userId ? m.challenged_id : m.challenger_id;
+        const u = userMap[oppId];
+        opponentName = u?.nama || 'Unknown';
+        opponentFoto = u?.foto_url || null;
+        const rank = rankMap[oppId];
+        opponentTier = rank ? `${rank.tier} ${'★'.repeat(rank.bintang)}` : '';
+      }
+
       return {
         id: m.id,
         tanggal: m.tanggal,
         lokasi: m.lokasi,
         opponent: {
-          nama: userMap[opponentId]?.nama || 'Unknown',
-          foto_url: userMap[opponentId]?.foto_url,
-          tier: rankMap[opponentId]
-            ? `${rankMap[opponentId].tier} ${'★'.repeat(rankMap[opponentId].bintang)}`
-            : '',
+          nama: opponentName,
+          foto_url: opponentFoto,
+          tier: opponentTier,
+          isGuest,
         },
         skor: skorTeks,
         hasil: hasil || statusText,
+        isGuest,
       };
     });
     return Response.json({ data });
@@ -303,27 +384,71 @@ export async function POST(req) {
   const { action, ...body } = await req.json();
 
   if (action === 'terima') {
-    const { matchId, challengerNama, challengerNoWa, tanggal, waktu, lokasi } = body;
-    const { error } = await supabaseAdmin
+    const { matchId } = body;
+    const { data: match, error: matchError } = await supabaseAdmin
+      .from('pertandingan')
+      .select('challenger_id, challenged_id, guest_name, guest_phone, tanggal, waktu, lokasi')
+      .eq('id', matchId)
+      .single();
+    if (matchError) return Response.json({ error: 'Pertandingan tidak ditemukan' }, { status: 404 });
+
+    let challengerNama, challengerNoWa;
+    if (match.challenger_id === null) {
+      challengerNama = match.guest_name || 'Guest';
+      challengerNoWa = match.guest_phone || '';
+    } else {
+      const { data: user } = await supabaseAdmin
+        .from('users')
+        .select('nama, no_wa')
+        .eq('id', match.challenger_id)
+        .single();
+      challengerNama = user?.nama || 'Unknown';
+      challengerNoWa = user?.no_wa || '';
+    }
+
+    const { error: updateError } = await supabaseAdmin
       .from('pertandingan')
       .update({ status: 'accepted' })
       .eq('id', matchId)
       .eq('challenged_id', userId);
-    if (error) return Response.json({ error: error.message }, { status: 500 });
-    const message = `Hei ${challengerNama}! Gue terima challengemu. Kita main ${tanggal} ${waktu} di ${lokasi}. Konfirmasi jam-nya ya?`;
+    if (updateError) return Response.json({ error: updateError.message }, { status: 500 });
+
+    const message = `Hei ${challengerNama}! Gue terima challengemu. Kita main ${match.tanggal} ${match.waktu} di ${match.lokasi}. Konfirmasi jam-nya ya?`;
     const waLink = `https://wa.me/${challengerNoWa}?text=${encodeURIComponent(message)}`;
     return Response.json({ success: true, waLink });
   }
 
   if (action === 'tolak') {
-    const { matchId, challengerNama, challengerNoWa, tanggal, waktu } = body;
-    const { error } = await supabaseAdmin
+    const { matchId } = body;
+    const { data: match, error: matchError } = await supabaseAdmin
+      .from('pertandingan')
+      .select('challenger_id, challenged_id, guest_name, guest_phone')
+      .eq('id', matchId)
+      .single();
+    if (matchError) return Response.json({ error: 'Pertandingan tidak ditemukan' }, { status: 404 });
+
+    let challengerNama, challengerNoWa;
+    if (match.challenger_id === null) {
+      challengerNama = match.guest_name || 'Guest';
+      challengerNoWa = match.guest_phone || '';
+    } else {
+      const { data: user } = await supabaseAdmin
+        .from('users')
+        .select('nama, no_wa')
+        .eq('id', match.challenger_id)
+        .single();
+      challengerNama = user?.nama || 'Unknown';
+      challengerNoWa = user?.no_wa || '';
+    }
+
+    const { error: updateError } = await supabaseAdmin
       .from('pertandingan')
       .update({ status: 'rejected' })
       .eq('id', matchId)
       .eq('challenged_id', userId);
-    if (error) return Response.json({ error: error.message }, { status: 500 });
-    const message = `Hei ${challengerNama}! Maaf gue belum bisa terima challengemu untuk ${tanggal} ${waktu}.`;
+    if (updateError) return Response.json({ error: updateError.message }, { status: 500 });
+
+    const message = `Hei ${challengerNama}! Maaf gue belum bisa terima challengemu.`;
     const waLink = `https://wa.me/${challengerNoWa}?text=${encodeURIComponent(message)}`;
     return Response.json({ success: true, waLink });
   }
@@ -331,7 +456,6 @@ export async function POST(req) {
   if (action === 'skor') {
     const { matchId, skorSendiri, skorLawan } = body;
     
-    // Ambil data pertandingan
     const { data: match, error: matchError } = await supabaseAdmin
       .from('pertandingan')
       .select('challenger_id, challenged_id, tanggal')
@@ -339,7 +463,6 @@ export async function POST(req) {
       .single();
     if (matchError) return Response.json({ error: 'Pertandingan tidak ditemukan' }, { status: 404 });
 
-    // Cek tanggal kadaluwarsa (H+2)
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const matchDate = new Date(match.tanggal);
@@ -350,7 +473,6 @@ export async function POST(req) {
       return Response.json({ error: 'Waktu input skor sudah habis (H+2).' }, { status: 400 });
     }
 
-    // Cek apakah user sudah input skor sebelumnya
     const { data: existing } = await supabaseAdmin
       .from('skor')
       .select('id, input_by, skor_sendiri, skor_lawan')
@@ -360,7 +482,6 @@ export async function POST(req) {
       return Response.json({ error: 'Anda sudah input skor untuk pertandingan ini' }, { status: 400 });
     }
 
-    // Insert skor user
     const { data: newSkor, error: insertError } = await supabaseAdmin
       .from('skor')
       .insert({
@@ -374,7 +495,6 @@ export async function POST(req) {
       .single();
     if (insertError) return Response.json({ error: 'Gagal menyimpan skor' }, { status: 500 });
 
-    // Cek apakah lawan sudah input
     const opponentSkor = existing?.find(s => s.input_by !== userId);
     if (opponentSkor) {
       const { data: opponentData } = await supabaseAdmin
@@ -383,10 +503,8 @@ export async function POST(req) {
         .eq('id', opponentSkor.id)
         .single();
       
-      // Validasi silang
       const isSync = (skorSendiri === opponentData.skor_lawan) && (skorLawan === opponentData.skor_sendiri);
       if (isSync) {
-        // Skor sinkron, tentukan pemenang
         const userScore = skorSendiri;
         const opponentScore = opponentData.skor_sendiri;
         const isUserWin = userScore > opponentScore;
@@ -400,7 +518,6 @@ export async function POST(req) {
         await supabaseAdmin.from('pertandingan').update({ status: 'done' }).eq('id', matchId);
         return Response.json({ success: true, message: 'Skor valid! Pertandingan selesai, rank diperbarui.' });
       } else {
-        // Tidak sinkron -> batalkan (expired)
         await supabaseAdmin.from('pertandingan').update({ status: 'expired' }).eq('id', matchId);
         return Response.json({ error: 'Skor tidak sinkron dengan lawan. Pertandingan dibatalkan.' }, { status: 400 });
       }

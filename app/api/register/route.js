@@ -125,7 +125,7 @@ export async function POST(req) {
 
     if (tokenError) console.error('Token insert error:', tokenError);
 
-    return new Response(JSON.stringify({ message: 'Pendaftaran berhasil, tunggu verifikasi' }), { status: 200 });
+    return new Response(JSON.stringify({ message: 'Pendaftaran berhasil, lihat Whatsapp untuk link verifikasi dan langsung login' }), { status: 200 });
   } catch (error) {
     console.error('Server error:', error);
     return new Response(JSON.stringify({ error: 'Terjadi kesalahan server' }), { status: 500 });

@@ -15,7 +15,7 @@ function formatRelativeTime(dateStr) {
 }
 
 export default async function Home() {
-  // ===== 1. AMBIL LEADERBOARD (5 TERATAS) =====
+  // ===== 1. LEADERBOARD (5 TERATAS) =====
   let leaderboard = [];
   try {
     const { data: rankData } = await supabaseAdmin
@@ -49,62 +49,89 @@ export default async function Home() {
     console.error('Leaderboard error:', err);
   }
 
-  // ===== 2. AMBIL FEED (10 AKTIVITAS TERBARU) =====
+  // ===== 2. FEED (10 AKTIVITAS TERBARU) dengan LAYOUT BARU =====
   let feed = [];
   try {
-    const { data: skorData } = await supabaseAdmin
+    const { data: skorData, error: skorError } = await supabaseAdmin
       .from('skor')
       .select('id, match_id, input_by, skor_sendiri, skor_lawan, created_at')
       .eq('confirmed', true)
-      .order('created_at', { ascending: false })
-      .limit(10);
+      .order('created_at', { ascending: false });
 
-    if (skorData && skorData.length > 0) {
-      const matchIds = skorData.map((item) => item.match_id);
-      const { data: matchData } = await supabaseAdmin
-        .from('pertandingan')
-        .select('id, challenger_id, challenged_id, lokasi')
-        .in('id', matchIds);
+    if (skorError) {
+      console.error('Supabase error on skor:', skorError);
+    } else if (skorData && skorData.length > 0) {
+      // Filter hanya pemenang (skor_sendiri > skor_lawan)
+      const winners = skorData.filter(item => item.skor_sendiri > item.skor_lawan);
+      const topWinners = winners.slice(0, 10);
 
-      const matchMap = {};
-      matchData?.forEach((m) => { matchMap[m.id] = m; });
+      if (topWinners.length > 0) {
+        const matchIds = topWinners.map((item) => item.match_id);
+        const { data: matchData } = await supabaseAdmin
+          .from('pertandingan')
+          .select('id, challenger_id, challenged_id')
+          .in('id', matchIds);
 
-      const userIds = [];
-      for (const item of skorData) {
-        const match = matchMap[item.match_id];
-        if (!match) continue;
-        userIds.push(item.input_by);
-        const lawanId = match.challenger_id === item.input_by ? match.challenged_id : match.challenger_id;
-        userIds.push(lawanId);
-      }
+        const matchMap = {};
+        matchData?.forEach((m) => { matchMap[m.id] = m; });
 
-      const { data: usersData } = await supabaseAdmin
-        .from('users')
-        .select('id, nama')
-        .in('id', [...new Set(userIds)]);
+        // Kumpulkan semua user_id yang terlibat (pemenang + lawan)
+        const userIds = new Set();
+        for (const item of topWinners) {
+          const match = matchMap[item.match_id];
+          if (!match) continue;
+          userIds.add(item.input_by);
+          const lawanId = match.challenger_id === item.input_by ? match.challenged_id : match.challenger_id;
+          userIds.add(lawanId);
+        }
 
-      const userMap = {};
-      usersData?.forEach((u) => { userMap[u.id] = u; });
+        // Ambil data user (nama, foto_url) dan juga rank
+        const { data: usersData } = await supabaseAdmin
+          .from('users')
+          .select('id, nama, foto_url')
+          .in('id', [...userIds]);
 
-      for (const item of skorData) {
-        const match = matchMap[item.match_id];
-        if (!match) continue;
-        const user = userMap[item.input_by];
-        if (!user) continue;
-        const lawanId = match.challenger_id === item.input_by ? match.challenged_id : match.challenger_id;
-        const lawan = userMap[lawanId];
-        const lawanNama = lawan?.nama || 'lawan';
-        feed.push({
-          seed: user.id,
-          nama: user.nama,
-          aksi: `menang ${item.skor_sendiri}-${item.skor_lawan} vs ${lawanNama}`,
-          rank: '',
-          waktu: formatRelativeTime(item.created_at),
+        const userMap = {};
+        usersData?.forEach((u) => { userMap[u.id] = u; });
+
+        // Ambil rank untuk semua user yang terlibat
+        const { data: rankData } = await supabaseAdmin
+          .from('rank')
+          .select('user_id, tier, bintang')
+          .in('user_id', [...userIds]);
+
+        const rankMap = {};
+        rankData?.forEach((r) => {
+          rankMap[r.user_id] = `${r.tier} ${'★'.repeat(r.bintang || 0)}`;
         });
+
+        for (const item of topWinners) {
+          const match = matchMap[item.match_id];
+          if (!match) continue;
+          const pemenang = userMap[item.input_by];
+          if (!pemenang) continue;
+          const lawanId = match.challenger_id === item.input_by ? match.challenged_id : match.challenger_id;
+          const lawan = userMap[lawanId];
+          if (!lawan) continue;
+
+          feed.push({
+            pemenangId: item.input_by,
+            pemenangNama: pemenang.nama,
+            pemenangFoto: pemenang.foto_url || null,
+            pemenangRank: rankMap[item.input_by] || '-',
+            skorSendiri: item.skor_sendiri,
+            skorLawan: item.skor_lawan,
+            lawanId,
+            lawanNama: lawan.nama,
+            lawanFoto: lawan.foto_url || null,
+            lawanRank: rankMap[lawanId] || '-',
+            waktu: formatRelativeTime(item.created_at),
+          });
+        }
       }
     }
   } catch (err) {
-    console.error('Feed error:', err);
+    console.error('Feed error:', err?.message || err);
   }
 
   // ===== 3. CHAT DUMMY =====
@@ -136,7 +163,7 @@ export default async function Home() {
             textTransform: 'uppercase',
           }}
         >
-          18 player aktif sekarang
+          banyak player aktif mencari sparring
         </span>
       </div>
 
@@ -406,7 +433,7 @@ export default async function Home() {
       {/* Live Chat Global */}
       <LiveChat initialMessages={chatMessages} onlineCount={onlineCount} />
 
-      {/* Feed */}
+      {/* Feed dengan layout baru */}
       <p
         style={{
           fontSize: '10px',
@@ -419,51 +446,75 @@ export default async function Home() {
         Baru saja terjadi
       </p>
 
-      {feed.map((item, i) => (
-        <div
-          key={i}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '10px 0',
-            borderBottom:
-              i < feed.length - 1 ? '0.5px solid #e5e5e5' : 'none',
-          }}
-        >
-          <img
-            src={`https://picsum.photos/seed/${item.seed}/34/34`}
-            alt={item.nama}
-            style={{
-              width: '34px',
-              height: '34px',
-              borderRadius: '4px',
-              objectFit: 'cover',
-              flexShrink: 0,
-            }}
-          />
-          <div style={{ flex: 1, fontSize: '13px' }}>
-            <strong>{item.nama}</strong> {item.aksi}
-            {item.rank && (
-              <span
-                style={{
-                  fontSize: '10px',
-                  border: '0.5px solid #e5e5e5',
-                  borderRadius: '3px',
-                  padding: '1px 5px',
-                  color: '#888',
-                  marginLeft: '4px',
-                }}
-              >
-                {item.rank}
-              </span>
-            )}
-          </div>
-          <span style={{ fontSize: '11px', color: '#aaa', flexShrink: 0 }}>
-            {item.waktu}
-          </span>
+      {feed.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '20px 0', color: '#aaa', fontSize: '13px' }}>
+          Belum ada aktivitas.
         </div>
-      ))}
+      ) : (
+        feed.map((item, i) => (
+          <div
+            key={i}
+            style={{
+              display: 'flex',
+              alignItems: 'stretch',
+              gap: '12px',
+              padding: '10px 0',
+              borderBottom: i < feed.length - 1 ? '0.5px solid #e5e5e5' : 'none',
+            }}
+          >
+            {/* Kiri: foto + tier */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+              <img
+                src={item.pemenangFoto || `https://picsum.photos/seed/${item.pemenangId}/60/60`}
+                alt={item.pemenangNama}
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '4px',
+                  objectFit: 'cover',
+                }}
+              />
+              <span style={{ fontSize: '10px', color: '#888', textAlign: 'center' }}>{item.pemenangRank}</span>
+            </div>
+
+            {/* Tengah: nama, vs, skor, waktu */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
+              {/* Baris 1: Nama kiri & kanan */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                <span style={{ fontWeight: '600', fontSize: '14px' }}>{item.pemenangNama}</span>
+                <span style={{ fontWeight: '600', fontSize: '14px' }}>{item.lawanNama}</span>
+              </div>
+
+              {/* Baris 2: Skor kiri, ·, skor kanan */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: '2px' }}>
+                <span style={{ fontSize: '15px', fontWeight: '700', color: '#000' }}>{item.skorSendiri}</span>
+                <span style={{ fontSize: '14px', color: '#ccc' }}>·</span>
+                <span style={{ fontSize: '15px', fontWeight: '700', color: '#000' }}>{item.skorLawan}</span>
+              </div>
+
+              {/* Baris 3: Waktu */}
+              <div style={{ fontSize: '12px', color: '#aaa', marginTop: '4px', textAlign: 'center' }}>
+                {item.waktu}
+              </div>
+            </div>
+
+            {/* Kanan: foto + tier */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+              <img
+                src={item.lawanFoto || `https://picsum.photos/seed/${item.lawanId}/60/60`}
+                alt={item.lawanNama}
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '4px',
+                  objectFit: 'cover',
+                }}
+              />
+              <span style={{ fontSize: '10px', color: '#888', textAlign: 'center' }}>{item.lawanRank}</span>
+            </div>
+          </div>
+        ))
+      )}
     </main>
   );
 }
