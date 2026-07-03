@@ -28,7 +28,7 @@ export default async function Home() {
       const userIds = rankData.map((item) => item.user_id);
       const { data: usersData } = await supabaseAdmin
         .from('users')
-        .select('id, nama, kota, foto_url')
+        .select('id, nama, username, kota, foto_url')
         .in('id', userIds);
 
       const userMap = {};
@@ -38,6 +38,7 @@ export default async function Home() {
         const user = userMap[item.user_id];
         return {
           userId: item.user_id,
+          username: user?.username || '',
           nama: user?.nama || 'Unknown',
           kota: user?.kota || '-',
           foto_url: user?.foto_url || null,
@@ -375,7 +376,7 @@ export default async function Home() {
           >
             {i + 1}
           </span>
-          <Link href={`/user/${p.userId}`} style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <Link href={`/u/${p.username}`} style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
             <img
               src={p.foto_url || `https://picsum.photos/seed/${p.userId}/30/30`}
               alt={p.nama}
@@ -484,7 +485,7 @@ export default async function Home() {
           >
             {/* Kiri: foto + tier */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-              <Link href={`/user/${item.pemenangId}`}>
+              <Link href={`/u/${item.pemenangId}`}>
                 <img
                   src={item.pemenangFoto || `https://picsum.photos/seed/${item.pemenangId}/60/60`}
                   alt={item.pemenangNama}
@@ -504,10 +505,10 @@ export default async function Home() {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
               {/* Baris 1: Nama kiri & kanan */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                <Link href={`/user/${item.pemenangId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <Link href={`/u/${item.pemenangId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                   <span style={{ fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>{item.pemenangNama}</span>
                 </Link>
-                <Link href={`/user/${item.lawanId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <Link href={`/u/${item.lawanId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                   <span style={{ fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>{item.lawanNama}</span>
                 </Link>
               </div>
@@ -527,7 +528,7 @@ export default async function Home() {
 
             {/* Kanan: foto + tier */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-              <Link href={`/user/${item.lawanId}`}>
+              <Link href={`/u/${item.lawanId}`}>
                 <img
                   src={item.lawanFoto || `https://picsum.photos/seed/${item.lawanId}/60/60`}
                   alt={item.lawanNama}
