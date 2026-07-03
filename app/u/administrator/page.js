@@ -31,7 +31,6 @@ function formatDate(dateStr) {
   return `${Math.floor(diffDays / 30)} bulan lalu`;
 }
 
-// ===== HARDCODE GALLERY (ambil dari internet) =====
 const GALLERY_IMAGES = [
   'https://picsum.photos/seed/admin1/400/400',
   'https://picsum.photos/seed/admin2/400/400',
@@ -40,7 +39,6 @@ const GALLERY_IMAGES = [
 ];
 
 export default async function AdministratorPage() {
-  // Ambil data user 'administrator'
   const { data: user, error: userError } = await supabaseAdmin
     .from('users')
     .select('id, nama, username, kota, foto_url, bio, lokasi_favorit')
@@ -51,7 +49,6 @@ export default async function AdministratorPage() {
     notFound();
   }
 
-  // Ambil rank
   const { data: rankData } = await supabaseAdmin
     .from('rank')
     .select('tier, bintang, streak')
@@ -62,7 +59,6 @@ export default async function AdministratorPage() {
   const bintang = '★'.repeat(rankData?.bintang || 0);
   const streak = rankData?.streak || 0;
 
-  // Ambil match history
   const { data: matchesDone } = await supabaseAdmin
     .from('pertandingan')
     .select('id, challenger_id, challenged_id, tanggal, lokasi, waktu')
@@ -168,9 +164,11 @@ export default async function AdministratorPage() {
   const winrate = totalMatch > 0 ? Math.round((menang / totalMatch) * 100) : 0;
 
   const currentUserId = await getCurrentUserId();
+
+  // ===== TOMBOL CHALLENGE PINTAR =====
   const challengeLink = currentUserId
-    ? `/ajak-sparring/${user.username}`
-    : '/login';
+    ? `/ajak-sparring/${user.username}` // dinamis
+    : '/ajak-sparring/guest/administrator'; // hardcode guest
 
   return (
     <main style={{ maxWidth: '420px', margin: '0 auto', padding: '24px 16px', fontFamily: 'sans-serif' }}>
@@ -198,7 +196,6 @@ export default async function AdministratorPage() {
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <h1 style={{ fontSize: '24px', fontWeight: '600', margin: '0 0 4px' }}>{user.nama}</h1>
-            {/* BADGE OFFICIAL */}
             <span
               style={{
                 background: '#000',
@@ -236,7 +233,6 @@ export default async function AdministratorPage() {
         </div>
       </div>
 
-      {/* GALERI */}
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '14px', fontWeight: '500', letterSpacing: '1px', textTransform: 'uppercase', color: '#aaa', marginBottom: '12px' }}>
           📸 GALERI
@@ -296,28 +292,28 @@ export default async function AdministratorPage() {
         ))}
       </div>
 
-      <Link href="/ajak-sparring/administrator" style={{ textDecoration: 'none' }}>
-  <button
-    style={{
-      width: '100%',
-      padding: '15px',
-      background: '#000',
-      color: '#fff',
-      border: 'none',
-      borderRadius: '4px',
-      fontSize: '15px',
-      fontWeight: '500',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      cursor: 'pointer',
-      marginBottom: '16px',
-    }}
-  >
-    <span>Challenge Administrator</span>
-    <span>→</span>
-  </button>
-</Link>
+      <Link href={challengeLink} style={{ textDecoration: 'none' }}>
+        <button
+          style={{
+            width: '100%',
+            padding: '15px',
+            background: '#000',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '4px',
+            fontSize: '15px',
+            fontWeight: '500',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            cursor: 'pointer',
+            marginBottom: '16px',
+          }}
+        >
+          <span>Challenge Administrator</span>
+          <span>→</span>
+        </button>
+      </Link>
 
       <div style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '8px 0' }}>
         sparring.id/u/{user.username}

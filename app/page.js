@@ -37,9 +37,10 @@ export default async function Home() {
       leaderboard = rankData.map((item) => {
         const user = userMap[item.user_id];
         return {
-          seed: item.user_id,
+          userId: item.user_id,
           nama: user?.nama || 'Unknown',
           kota: user?.kota || '-',
+          foto_url: user?.foto_url || null,
           rank: `${item.tier} ${'★'.repeat(item.bintang || 0)}`,
           poin: item.poin || 0,
         };
@@ -49,7 +50,7 @@ export default async function Home() {
     console.error('Leaderboard error:', err);
   }
 
-  // ===== 2. FEED (10 AKTIVITAS TERBARU) dengan LAYOUT BARU =====
+  // ===== 2. FEED (10 AKTIVITAS TERBARU) =====
   let feed = [];
   try {
     const { data: skorData, error: skorError } = await supabaseAdmin
@@ -61,7 +62,6 @@ export default async function Home() {
     if (skorError) {
       console.error('Supabase error on skor:', skorError);
     } else if (skorData && skorData.length > 0) {
-      // Filter hanya pemenang (skor_sendiri > skor_lawan)
       const winners = skorData.filter(item => item.skor_sendiri > item.skor_lawan);
       const topWinners = winners.slice(0, 10);
 
@@ -75,7 +75,6 @@ export default async function Home() {
         const matchMap = {};
         matchData?.forEach((m) => { matchMap[m.id] = m; });
 
-        // Kumpulkan semua user_id yang terlibat (pemenang + lawan)
         const userIds = new Set();
         for (const item of topWinners) {
           const match = matchMap[item.match_id];
@@ -85,7 +84,6 @@ export default async function Home() {
           userIds.add(lawanId);
         }
 
-        // Ambil data user (nama, foto_url) dan juga rank
         const { data: usersData } = await supabaseAdmin
           .from('users')
           .select('id, nama, foto_url')
@@ -94,7 +92,6 @@ export default async function Home() {
         const userMap = {};
         usersData?.forEach((u) => { userMap[u.id] = u; });
 
-        // Ambil rank untuk semua user yang terlibat
         const { data: rankData } = await supabaseAdmin
           .from('rank')
           .select('user_id, tier, bintang')
@@ -134,7 +131,30 @@ export default async function Home() {
     console.error('Feed error:', err?.message || err);
   }
 
-  // ===== 3. CHAT DUMMY =====
+  // ===== 3. STATS DARI DATABASE =====
+  let playerCount = 0;
+  let matchCount = 0;
+
+  try {
+    const { count: playerCountResult, error: playerError } = await supabaseAdmin
+      .from('rank')
+      .select('*', { count: 'exact', head: true });
+
+    if (!playerError) playerCount = playerCountResult || 0;
+    else console.error('Error count players:', playerError);
+
+    const { count: matchCountResult, error: matchError } = await supabaseAdmin
+      .from('skor')
+      .select('*', { count: 'exact', head: true })
+      .eq('confirmed', true);
+
+    if (!matchError) matchCount = matchCountResult || 0;
+    else console.error('Error count matches:', matchError);
+  } catch (err) {
+    console.error('Stats error:', err?.message || err);
+  }
+
+  // ===== 4. CHAT DUMMY =====
   const chatMessages = [
     { id: 1, user: 'Raka', message: 'Ada yang mau main sore ini?', waktu: '5 mnt' },
     { id: 2, user: 'Doni', message: 'Saya mau! Golden Billiard jam 4?', waktu: '3 mnt' },
@@ -239,7 +259,7 @@ export default async function Home() {
               marginBottom: '4px',
             }}
           >
-            47
+            {playerCount}
           </span>
           <span style={{ fontSize: '11px', color: '#888' }}>
             Player cari lawan sekarang
@@ -261,7 +281,7 @@ export default async function Home() {
               marginBottom: '4px',
             }}
           >
-            1.240
+            {matchCount}
           </span>
           <span style={{ fontSize: '11px', color: '#888' }}>
             Match dimainkan
@@ -355,9 +375,9 @@ export default async function Home() {
           >
             {i + 1}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+          <Link href={`/user/${p.userId}`} style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
             <img
-              src={`https://picsum.photos/seed/${p.seed}/30/30`}
+              src={p.foto_url || `https://picsum.photos/seed/${p.userId}/30/30`}
               alt={p.nama}
               style={{
                 width: '30px',
@@ -381,7 +401,7 @@ export default async function Home() {
               </div>
               <div style={{ fontSize: '11px', color: '#888' }}>{p.kota}</div>
             </div>
-          </div>
+          </Link>
           <span
             style={{
               fontSize: '10px',
@@ -464,16 +484,19 @@ export default async function Home() {
           >
             {/* Kiri: foto + tier */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-              <img
-                src={item.pemenangFoto || `https://picsum.photos/seed/${item.pemenangId}/60/60`}
-                alt={item.pemenangNama}
-                style={{
-                  width: '60px',
-                  height: '60px',
-                  borderRadius: '4px',
-                  objectFit: 'cover',
-                }}
-              />
+              <Link href={`/user/${item.pemenangId}`}>
+                <img
+                  src={item.pemenangFoto || `https://picsum.photos/seed/${item.pemenangId}/60/60`}
+                  alt={item.pemenangNama}
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '4px',
+                    objectFit: 'cover',
+                    cursor: 'pointer',
+                  }}
+                />
+              </Link>
               <span style={{ fontSize: '10px', color: '#888', textAlign: 'center' }}>{item.pemenangRank}</span>
             </div>
 
@@ -481,8 +504,12 @@ export default async function Home() {
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
               {/* Baris 1: Nama kiri & kanan */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                <span style={{ fontWeight: '600', fontSize: '14px' }}>{item.pemenangNama}</span>
-                <span style={{ fontWeight: '600', fontSize: '14px' }}>{item.lawanNama}</span>
+                <Link href={`/user/${item.pemenangId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <span style={{ fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>{item.pemenangNama}</span>
+                </Link>
+                <Link href={`/user/${item.lawanId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <span style={{ fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>{item.lawanNama}</span>
+                </Link>
               </div>
 
               {/* Baris 2: Skor kiri, ·, skor kanan */}
@@ -500,16 +527,19 @@ export default async function Home() {
 
             {/* Kanan: foto + tier */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-              <img
-                src={item.lawanFoto || `https://picsum.photos/seed/${item.lawanId}/60/60`}
-                alt={item.lawanNama}
-                style={{
-                  width: '60px',
-                  height: '60px',
-                  borderRadius: '4px',
-                  objectFit: 'cover',
-                }}
-              />
+              <Link href={`/user/${item.lawanId}`}>
+                <img
+                  src={item.lawanFoto || `https://picsum.photos/seed/${item.lawanId}/60/60`}
+                  alt={item.lawanNama}
+                  style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '4px',
+                    objectFit: 'cover',
+                    cursor: 'pointer',
+                  }}
+                />
+              </Link>
               <span style={{ fontSize: '10px', color: '#888', textAlign: 'center' }}>{item.lawanRank}</span>
             </div>
           </div>

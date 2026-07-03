@@ -37,7 +37,9 @@ export default function PertandinganContent() {
   const [errorMsg, setErrorMsg] = useState('');
   const [modal, setModal] = useState({ show: false, matchId: null, opponentName: '', skorSendiri: '', skorLawan: '' });
 
-  // State untuk user
+  // State untuk popup skor
+  const [skorPopup, setSkorPopup] = useState({ show: false, message: '' });
+
   const [user, setUser] = useState(null);
 
   const activeTabRef = useRef(activeTab);
@@ -45,7 +47,6 @@ export default function PertandinganContent() {
     activeTabRef.current = activeTab;
   }, [activeTab]);
 
-  // Ambil data user
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -59,7 +60,6 @@ export default function PertandinganContent() {
     fetchUser();
   }, []);
 
-  // --- Fetch functions ---
   const fetchAjakan = async () => {
     setLoadingAjakan(true);
     setErrorMsg('');
@@ -106,10 +106,8 @@ export default function PertandinganContent() {
     } catch (err) { console.error(err); }
   };
 
-  // --- POLLING sesuai tab ---
   useEffect(() => {
     let interval;
-
     if (activeTab === 'ajakan') {
       fetchAjakan();
       interval = setInterval(fetchAjakan, 30000);
@@ -122,13 +120,9 @@ export default function PertandinganContent() {
     } else if (activeTab === 'riwayat') {
       fetchRiwayat();
     }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
+    return () => { if (interval) clearInterval(interval); };
   }, [activeTab]);
 
-  // --- Notifikasi WA ---
   useEffect(() => {
     if (sent === 'true') {
       setShowSuccess(true);
@@ -142,10 +136,8 @@ export default function PertandinganContent() {
     }
   }, [sent, waLink]);
 
-  // --- Handlers ---
   const handleTerima = async (item) => {
     if (item.isGuest) {
-      // Guest challenge: panggil API terima
       const res = await fetch('/api/pertandingan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -153,7 +145,6 @@ export default function PertandinganContent() {
       });
       const result = await res.json();
       if (result.success && result.waLink) {
-        // Redirect ke WA
         window.location.href = result.waLink;
         fetchAjakan();
         fetchTerjadwal();
@@ -189,7 +180,6 @@ export default function PertandinganContent() {
 
   const handleTolak = async (item) => {
     if (item.isGuest) {
-      // Guest challenge: panggil API tolak
       const res = await fetch('/api/pertandingan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -232,7 +222,10 @@ export default function PertandinganContent() {
   };
 
   const submitSkor = async () => {
-    if (!modal.skorSendiri || !modal.skorLawan) return alert('Isi kedua skor');
+    if (!modal.skorSendiri || !modal.skorLawan) {
+      setSkorPopup({ show: true, message: '⚠️ Harap isi kedua skor terlebih dahulu.' });
+      return;
+    }
     const res = await fetch('/api/pertandingan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -245,13 +238,17 @@ export default function PertandinganContent() {
     });
     const result = await res.json();
     if (result.success) {
-      alert(result.message);
       setModal({ show: false, matchId: null, opponentName: '', skorSendiri: '', skorLawan: '' });
+      setSkorPopup({ show: true, message: '✅ ' + (result.message || 'Skor berhasil disimpan!') });
       fetchTerjadwal();
       fetchRiwayat();
     } else {
-      alert(result.error || 'Gagal input skor');
+      setSkorPopup({ show: true, message: '❌ ' + (result.error || 'Gagal input skor') });
     }
+  };
+
+  const closeSkorPopup = () => {
+    setSkorPopup({ show: false, message: '' });
   };
 
   const countAjakan = ajakanData.length;
@@ -437,6 +434,61 @@ export default function PertandinganContent() {
             <input type="number" placeholder="Skor lawan" value={modal.skorLawan} onChange={e => setModal({...modal, skorLawan: e.target.value})} style={{ width:'100%', padding:'8px', marginTop:'12px', border:'0.5px solid #ccc', borderRadius:'4px' }} />
             <button onClick={submitSkor} style={{ width:'100%', padding:'8px', background:'#000', color:'#fff', border:'none', borderRadius:'4px', marginTop:'16px', cursor:'pointer' }}>Simpan</button>
             <button onClick={() => setModal({ show: false, matchId: null, opponentName: '', skorSendiri: '', skorLawan: '' })} style={{ width:'100%', padding:'8px', background:'#eee', border:'none', borderRadius:'4px', marginTop:'8px', cursor:'pointer' }}>Batal</button>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP SKOR (bukan alert) */}
+      {skorPopup.show && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px',
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div
+            style={{
+              background: '#fff',
+              maxWidth: '380px',
+              width: '100%',
+              padding: '32px 24px',
+              borderRadius: '12px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: '40px', marginBottom: '8px' }}>📢</div>
+            <div style={{ fontSize: '18px', fontWeight: '600', marginBottom: '12px', whiteSpace: 'pre-line' }}>
+              {skorPopup.message}
+            </div>
+            <button
+              onClick={closeSkorPopup}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: '#000',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                marginTop: '8px',
+              }}
+            >
+              Selesai
+            </button>
           </div>
         </div>
       )}

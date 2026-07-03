@@ -305,13 +305,20 @@ export async function GET(req) {
 
     const data = matches.map(m => {
       const scores = scoreMap.get(m.id) || [];
-      const userScores = scores.filter(s => s.input_by === userId);
-      const opponentScores = scores.filter(s => s.input_by !== userId);
+      let userScores = scores.filter(s => s.input_by === userId);
+      let opponentScores = scores.filter(s => s.input_by !== userId);
       let hasil = '';
       let skorTeks = '-';
       let statusText = '';
 
-      if (m.status === 'rejected') {
+      // Jika ini guest match dan hanya ada satu skor (dari admin)
+      if (m.challenger_id === null && userScores.length === 1 && opponentScores.length === 0) {
+        const userScore = userScores[0];
+        skorTeks = `${userScore.skor_sendiri}-${userScore.skor_lawan}`;
+        const isWin = userScore.skor_sendiri > userScore.skor_lawan;
+        hasil = isWin ? 'Menang' : 'Kalah';
+        // status sudah 'done', tidak perlu ubah
+      } else if (m.status === 'rejected') {
         statusText = 'Ditolak';
       } else if (m.status === 'expired') {
         statusText = 'Kadaluwarsa';
@@ -458,10 +465,12 @@ export async function POST(req) {
     
     const { data: match, error: matchError } = await supabaseAdmin
       .from('pertandingan')
-      .select('challenger_id, challenged_id, tanggal')
+      .select('challenger_id, challenged_id, tanggal, guest_name')
       .eq('id', matchId)
       .single();
     if (matchError) return Response.json({ error: 'Pertandingan tidak ditemukan' }, { status: 404 });
+
+    const isGuestMatch = match.challenger_id === null;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -495,6 +504,39 @@ export async function POST(req) {
       .single();
     if (insertError) return Response.json({ error: 'Gagal menyimpan skor' }, { status: 500 });
 
+    // ===== KALAU GUEST MATCH =====
+    if (isGuestMatch) {
+      const isUserWin = skorSendiri > skorLawan;
+
+      const { data: adminRank } = await supabaseAdmin
+        .from('rank')
+        .select('tier, bintang')
+        .eq('user_id', userId)
+        .single();
+      if (adminRank) {
+        const guestTier = 'rintis';
+        const guestBintang = 0;
+        if (isUserWin) {
+          await updateRank(userId, true, guestTier, guestBintang);
+        } else {
+          await updateRank(userId, false, adminRank.tier, adminRank.bintang);
+        }
+      }
+
+      await supabaseAdmin
+        .from('skor')
+        .update({ confirmed: true })
+        .eq('id', newSkor.id);
+
+      await supabaseAdmin
+        .from('pertandingan')
+        .update({ status: 'done' })
+        .eq('id', matchId);
+
+      return Response.json({ success: true, message: 'Skor valid! Pertandingan selesai, rank diperbarui.' });
+    }
+
+    // ===== KALAU BUKAN GUEST =====
     const opponentSkor = existing?.find(s => s.input_by !== userId);
     if (opponentSkor) {
       const { data: opponentData } = await supabaseAdmin
