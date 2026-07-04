@@ -1,4 +1,3 @@
-// ========== FILE: app/api/dashboard/route.js ==========
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { cookies } from 'next/headers';
 import jwt from 'jsonwebtoken';
@@ -69,7 +68,6 @@ export async function GET() {
       .neq('id', userId)
       .order('nama', { ascending: true });
 
-    // Ambil rank untuk semua player
     const playerIds = playersData?.map(p => p.id) || [];
     const { data: playerRanks } = await supabaseAdmin
       .from('rank')
@@ -90,7 +88,7 @@ export async function GET() {
       foto: p.foto_url,
     })) || [];
 
-    // 4. Aktivitas terbaru - 1 per match, hanya pemenang
+    // 4. Aktivitas terbaru - 1 per match, hanya pemenang, termasuk guest
     const { data: scoresData } = await supabaseAdmin
       .from('skor')
       .select('id, match_id, input_by, skor_sendiri, skor_lawan, created_at')
@@ -98,25 +96,24 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(50);
 
-    // Ambil semua match_id unik
     const matchIds = [...new Set(scoresData?.map(s => s.match_id) || [])];
+    // Ambil data match termasuk guest_name, guest_phone
     const { data: matches } = await supabaseAdmin
       .from('pertandingan')
-      .select('id, challenger_id, challenged_id')
+      .select('id, challenger_id, challenged_id, guest_name, guest_phone')
       .in('id', matchIds);
 
     const matchMap = {};
     matches?.forEach(m => { matchMap[m.id] = m; });
 
-    // Ambil semua user_id yang terlibat
+    // Kumpulkan semua user_id yang terlibat (hanya yang bukan guest)
     const userIds = new Set();
     for (const score of scoresData || []) {
-      userIds.add(score.input_by);
       const match = matchMap[score.match_id];
-      if (match) {
-        userIds.add(match.challenger_id);
-        userIds.add(match.challenged_id);
-      }
+      if (!match) continue;
+      if (match.challenger_id !== null) userIds.add(match.challenger_id);
+      if (match.challenged_id !== null) userIds.add(match.challenged_id);
+      userIds.add(score.input_by);
     }
 
     // Ambil data user dan rank
@@ -146,28 +143,44 @@ export async function GET() {
       if (!match) continue;
       if (processedMatches.has(score.match_id)) continue;
 
-      // Tentukan pemenang (skor_sendiri > skor_lawan)
+      // Hanya tampilkan jika skor_sendiri > skor_lawan (pemenang)
       if (score.skor_sendiri <= score.skor_lawan) continue;
 
       const winnerId = score.input_by;
-      const loserId = match.challenger_id === winnerId ? match.challenged_id : match.challenger_id;
-
       const winner = userMap[winnerId];
-      const loser = userMap[loserId];
-      if (!winner || !loser) continue;
+      if (!winner) continue;
+
+      // Tentukan lawan
+      let lawanId = null;
+      let lawanNama = '';
+      let lawanFoto = null;
+      let lawanRank = '';
+
+      if (match.challenger_id === null) {
+        // Guest match
+        lawanNama = match.guest_name || 'Guest';
+        lawanRank = 'Guest';
+      } else {
+        lawanId = match.challenger_id === winnerId ? match.challenged_id : match.challenger_id;
+        const lawanUser = userMap[lawanId];
+        if (!lawanUser) continue;
+        lawanNama = lawanUser.nama;
+        lawanFoto = lawanUser.foto_url || null;
+        lawanRank = rankMapAll[lawanId] || '-';
+      }
 
       activities.push({
         nama: winner.nama,
         winnerRank: rankMapAll[winnerId] || '-',
         skorSendiri: score.skor_sendiri,
         skorLawan: score.skor_lawan,
-        lawanNama: loser.nama,
-        loserRank: rankMapAll[loserId] || '-',
+        lawanNama,
+        loserRank: lawanRank,
         waktu: formatRelativeTime(score.created_at),
         seed: winnerId,
-        foto: winner.foto_url,
-        lawanId: loserId,
-        lawanFoto: loser.foto_url,
+        foto: winner.foto_url || null,
+        lawanId,
+        lawanFoto,
       });
 
       processedMatches.add(score.match_id);

@@ -59,9 +59,10 @@ export default async function AdministratorPage() {
   const bintang = '★'.repeat(rankData?.bintang || 0);
   const streak = rankData?.streak || 0;
 
+  // Ambil match history termasuk guest_name jika challenger_id null
   const { data: matchesDone } = await supabaseAdmin
     .from('pertandingan')
-    .select('id, challenger_id, challenged_id, tanggal, lokasi, waktu')
+    .select('id, challenger_id, challenged_id, tanggal, lokasi, waktu, guest_name, guest_phone')
     .or(`challenger_id.eq.${user.id},challenged_id.eq.${user.id}`)
     .eq('status', 'done');
 
@@ -95,12 +96,21 @@ export default async function AdministratorPage() {
         let hasil = 'Draw';
 
         if (scores.length === 1) {
-          winnerId = scores[0].input_by;
-          const isUserWin = winnerId === user.id;
-          const skorUser = isUserWin ? scores[0].skor_sendiri : scores[0].skor_lawan;
-          const skorLawan = isUserWin ? scores[0].skor_lawan : scores[0].skor_sendiri;
-          skorText = `${skorUser}-${skorLawan}`;
-          hasil = skorUser > skorLawan ? 'Menang' : (skorUser < skorLawan ? 'Kalah' : 'Draw');
+          // Hanya ada satu skor (guest match atau hanya satu yang input)
+          const score = scores[0];
+          // Bandingkan skor_sendiri dan skor_lawan untuk menentukan hasil
+          const userSkor = score.skor_sendiri;
+          const oppSkor = score.skor_lawan;
+          skorText = `${userSkor}-${oppSkor}`;
+          if (userSkor > oppSkor) {
+            hasil = 'Menang';
+          } else if (userSkor < oppSkor) {
+            hasil = 'Kalah';
+          } else {
+            hasil = 'Draw';
+          }
+          // winnerId tidak ditentukan untuk skor tunggal (karena lawan mungkin guest)
+          winnerId = null;
         } else if (scores.length === 2) {
           const userScore = scores.find(s => s.input_by === user.id);
           const oppScore = scores.find(s => s.input_by !== user.id);
@@ -118,40 +128,60 @@ export default async function AdministratorPage() {
               hasil = 'Draw';
             }
           } else {
-            winnerId = scores[0].input_by;
-            const isUserWin = winnerId === user.id;
-            const skorUser = isUserWin ? scores[0].skor_sendiri : scores[0].skor_lawan;
-            const skorLawan = isUserWin ? scores[0].skor_lawan : scores[0].skor_sendiri;
-            skorText = `${skorUser}-${skorLawan}`;
-            hasil = skorUser > skorLawan ? 'Menang' : (skorUser < skorLawan ? 'Kalah' : 'Draw');
+            // fallback
+            const firstScore = scores[0];
+            const isUserWin = firstScore.input_by === user.id;
+            const userSkor = isUserWin ? firstScore.skor_sendiri : firstScore.skor_lawan;
+            const oppSkor = isUserWin ? firstScore.skor_lawan : firstScore.skor_sendiri;
+            skorText = `${userSkor}-${oppSkor}`;
+            hasil = userSkor > oppSkor ? 'Menang' : (userSkor < oppSkor ? 'Kalah' : 'Draw');
+            winnerId = (hasil === 'Menang' && isUserWin) ? user.id : (hasil === 'Menang' ? oppScore?.input_by : null);
           }
         }
 
-        if (winnerId === user.id) menang++;
-        else if (winnerId !== null && winnerId !== user.id) kalah++;
+        // Update menang/kalah berdasarkan hasil
+        if (hasil === 'Menang') {
+          menang++;
+        } else if (hasil === 'Kalah') {
+          kalah++;
+        }
 
-        const lawanId = match.challenger_id === user.id ? match.challenged_id : match.challenger_id;
-        const { data: lawanUser } = await supabaseAdmin
-          .from('users')
-          .select('nama, username')
-          .eq('id', lawanId)
-          .single();
-        const { data: lawanRank } = await supabaseAdmin
-          .from('rank')
-          .select('tier, bintang')
-          .eq('user_id', lawanId)
-          .single();
-        const lawanRankText = lawanRank ? `${lawanRank.tier} ${'★'.repeat(lawanRank.bintang)}` : '';
+        // Tentukan lawan
+        let lawanName = 'Unknown';
+        let lawanRankText = '';
+        let isGuest = false;
+
+        if (match.challenger_id === null) {
+          // Guest challenge
+          isGuest = true;
+          lawanName = match.guest_name || 'Guest';
+          lawanRankText = 'Guest';
+        } else {
+          const lawanId = match.challenger_id === user.id ? match.challenged_id : match.challenger_id;
+          const { data: lawanUser } = await supabaseAdmin
+            .from('users')
+            .select('nama, username')
+            .eq('id', lawanId)
+            .single();
+          const { data: lawanRank } = await supabaseAdmin
+            .from('rank')
+            .select('tier, bintang')
+            .eq('user_id', lawanId)
+            .single();
+          lawanName = lawanUser?.nama || 'Unknown';
+          lawanRankText = lawanRank ? `${lawanRank.tier} ${'★'.repeat(lawanRank.bintang)}` : '';
+        }
 
         history.push({
           match,
-          lawan: lawanUser?.nama || 'Unknown',
+          lawan: lawanName,
           lawanRank: lawanRankText,
           skor: skorText,
           hasil,
           tanggal: match.tanggal,
           lokasi: match.lokasi || '-',
           isWin: hasil === 'Menang',
+          isGuest,
         });
       }
     }
@@ -281,7 +311,9 @@ export default async function AdministratorPage() {
         {latestHistory.map((match, idx) => (
           <div key={idx} style={{ padding: '12px 0', borderBottom: idx < latestHistory.length - 1 ? '0.5px solid #e5e5e5' : 'none' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-              <span style={{ fontWeight: '600', fontSize: '14px' }}>vs {match.lawan} · {match.lawanRank}</span>
+              <span style={{ fontWeight: '600', fontSize: '14px' }}>
+                {match.isGuest ? 'vs ' : 'vs '}{match.lawan} · {match.lawanRank}
+              </span>
               <span style={{ fontSize: '11px', color: '#aaa' }}>{formatDate(match.tanggal)}</span>
             </div>
             <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>{match.lokasi}</div>

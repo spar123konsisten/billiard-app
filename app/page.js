@@ -70,7 +70,7 @@ export default async function Home() {
         const matchIds = topWinners.map((item) => item.match_id);
         const { data: matchData } = await supabaseAdmin
           .from('pertandingan')
-          .select('id, challenger_id, challenged_id')
+          .select('id, challenger_id, challenged_id, guest_name, guest_phone')
           .in('id', matchIds);
 
         const matchMap = {};
@@ -80,9 +80,9 @@ export default async function Home() {
         for (const item of topWinners) {
           const match = matchMap[item.match_id];
           if (!match) continue;
+          if (match.challenger_id !== null) userIds.add(match.challenger_id);
+          if (match.challenged_id !== null) userIds.add(match.challenged_id);
           userIds.add(item.input_by);
-          const lawanId = match.challenger_id === item.input_by ? match.challenged_id : match.challenger_id;
-          userIds.add(lawanId);
         }
 
         const { data: usersData } = await supabaseAdmin
@@ -108,9 +108,23 @@ export default async function Home() {
           if (!match) continue;
           const pemenang = userMap[item.input_by];
           if (!pemenang) continue;
-          const lawanId = match.challenger_id === item.input_by ? match.challenged_id : match.challenger_id;
-          const lawan = userMap[lawanId];
-          if (!lawan) continue;
+
+          let lawanId = null;
+          let lawanNama = '';
+          let lawanFoto = null;
+          let lawanRank = '';
+
+          if (match.challenger_id === null) {
+            lawanNama = match.guest_name || 'Guest';
+            lawanRank = 'Guest';
+          } else {
+            lawanId = match.challenger_id === item.input_by ? match.challenged_id : match.challenger_id;
+            const lawanUser = userMap[lawanId];
+            if (!lawanUser) continue;
+            lawanNama = lawanUser.nama;
+            lawanFoto = lawanUser.foto_url || null;
+            lawanRank = rankMap[lawanId] || '-';
+          }
 
           feed.push({
             pemenangId: item.input_by,
@@ -120,9 +134,9 @@ export default async function Home() {
             skorSendiri: item.skor_sendiri,
             skorLawan: item.skor_lawan,
             lawanId,
-            lawanNama: lawan.nama,
-            lawanFoto: lawan.foto_url || null,
-            lawanRank: rankMap[lawanId] || '-',
+            lawanNama,
+            lawanFoto,
+            lawanRank,
             waktu: formatRelativeTime(item.created_at),
           });
         }
@@ -213,7 +227,7 @@ export default async function Home() {
       </p>
 
       {/* CTA */}
-      <Link href="/register" style={{ textDecoration: 'none' }}>
+      <Link href="/login" style={{ textDecoration: 'none' }}>
         <button
           style={{
             width: '100%',
@@ -378,11 +392,11 @@ export default async function Home() {
           </span>
           <Link href={`/u/${p.username}`} style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
             <img
-              src={p.foto_url || `https://picsum.photos/seed/${p.userId}/30/30`}
+              src={p.foto_url || `https://picsum.photos/seed/${p.userId}/60/60`}
               alt={p.nama}
               style={{
-                width: '30px',
-                height: '30px',
+                width: '60px',
+                height: '60px',
                 borderRadius: '3px',
                 objectFit: 'cover',
                 flexShrink: 0,
@@ -421,7 +435,7 @@ export default async function Home() {
       ))}
 
       {/* Link ke registrasi */}
-      <Link href="/register" style={{ textDecoration: 'none' }}>
+      <Link href="/login" style={{ textDecoration: 'none' }}>
         <div
           style={{
             display: 'flex',
@@ -454,7 +468,7 @@ export default async function Home() {
       {/* Live Chat Global */}
       <LiveChat initialMessages={chatMessages} onlineCount={onlineCount} />
 
-      {/* Feed dengan layout baru */}
+      {/* Feed - vs di tengah skor, dinaikkan sedikit */}
       <p
         style={{
           fontSize: '10px',
@@ -508,16 +522,20 @@ export default async function Home() {
                 <Link href={`/u/${item.pemenangId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
                   <span style={{ fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>{item.pemenangNama}</span>
                 </Link>
-                <Link href={`/u/${item.lawanId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <span style={{ fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>{item.lawanNama}</span>
-                </Link>
+                {item.lawanId ? (
+                  <Link href={`/u/${item.lawanId}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <span style={{ fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>{item.lawanNama}</span>
+                  </Link>
+                ) : (
+                  <span style={{ fontWeight: '600', fontSize: '14px', color: '#888' }}>{item.lawanNama}</span>
+                )}
               </div>
 
-              {/* Baris 2: Skor kiri, ·, skor kanan */}
+              {/* Baris 2: Skor kiri, vs, skor kanan (vs dinaikkan) */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: '2px' }}>
-                <span style={{ fontSize: '15px', fontWeight: '700', color: '#000' }}>{item.skorSendiri}</span>
-                <span style={{ fontSize: '14px', color: '#ccc' }}>·</span>
-                <span style={{ fontSize: '15px', fontWeight: '700', color: '#000' }}>{item.skorLawan}</span>
+                <span style={{ fontSize: '16px', fontWeight: '700', color: '#000' }}>{item.skorSendiri}</span>
+                <span style={{ fontSize: '14px', color: '#666', fontWeight: '500', marginTop: '-11px' }}>vs</span>
+                <span style={{ fontSize: '16px', fontWeight: '700', color: '#000' }}>{item.skorLawan}</span>
               </div>
 
               {/* Baris 3: Waktu */}
@@ -528,19 +546,37 @@ export default async function Home() {
 
             {/* Kanan: foto + tier */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-              <Link href={`/u/${item.lawanId}`}>
-                <img
-                  src={item.lawanFoto || `https://picsum.photos/seed/${item.lawanId}/60/60`}
-                  alt={item.lawanNama}
+              {item.lawanId ? (
+                <Link href={`/u/${item.lawanId}`}>
+                  <img
+                    src={item.lawanFoto || `https://picsum.photos/seed/${item.lawanId}/60/60`}
+                    alt={item.lawanNama}
+                    style={{
+                      width: '60px',
+                      height: '60px',
+                      borderRadius: '4px',
+                      objectFit: 'cover',
+                      cursor: 'pointer',
+                    }}
+                  />
+                </Link>
+              ) : (
+                <div
                   style={{
                     width: '60px',
                     height: '60px',
                     borderRadius: '4px',
-                    objectFit: 'cover',
-                    cursor: 'pointer',
+                    background: '#e0e0e0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '24px',
+                    color: '#888',
                   }}
-                />
-              </Link>
+                >
+                  👤
+                </div>
+              )}
               <span style={{ fontSize: '10px', color: '#888', textAlign: 'center' }}>{item.lawanRank}</span>
             </div>
           </div>

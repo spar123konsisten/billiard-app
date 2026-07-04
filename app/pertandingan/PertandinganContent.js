@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import html2canvas from 'html2canvas';
 
 const cardStyle = {
   border: '0.5px solid #e5e5e5',
@@ -39,6 +40,10 @@ export default function PertandinganContent() {
 
   // State untuk popup skor
   const [skorPopup, setSkorPopup] = useState({ show: false, message: '' });
+
+  // State untuk share card
+  const [shareModal, setShareModal] = useState({ show: false, matchData: null });
+  const [shareLoading, setShareLoading] = useState(false);
 
   const [user, setUser] = useState(null);
 
@@ -251,6 +256,39 @@ export default function PertandinganContent() {
     setSkorPopup({ show: false, message: '' });
   };
 
+  // ===== SHARE CARD FUNCTIONS =====
+  const openShare = (item) => {
+    setShareModal({ show: true, matchData: item });
+  };
+
+  const closeShare = () => {
+    setShareModal({ show: false, matchData: null });
+  };
+
+  const downloadShare = async () => {
+    const card = document.getElementById('shareCard');
+    if (!card) return;
+    setShareLoading(true);
+    try {
+      const canvas = await html2canvas(card, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#0a0a0a',
+      });
+      const link = document.createElement('a');
+      link.download = `share-${shareModal.matchData?.id || 'match'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      alert('Gagal membuat gambar: ' + err.message);
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  // helper untuk bintang
+  const bintangStr = (n) => '★'.repeat(Math.max(0, Math.min(5, n || 0)));
+
   const countAjakan = ajakanData.length;
   const countTerjadwal = terjadwalData.length;
   const countRiwayat = riwayatData.length;
@@ -419,6 +457,28 @@ export default function PertandinganContent() {
                       {item.hasil} {item.skor !== '-' ? item.skor : ''}
                     </div>
                   </div>
+                  {/* TOMBOL SHARE */}
+                  <button
+                    onClick={() => openShare(item)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '6px',
+                      flexShrink: 0,
+                      borderRadius: '6px',
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = '#f0f0f0'}
+                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="5" r="3"/>
+                      <circle cx="6" cy="12" r="3"/>
+                      <circle cx="18" cy="19" r="3"/>
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
             );
@@ -438,7 +498,7 @@ export default function PertandinganContent() {
         </div>
       )}
 
-      {/* POPUP SKOR (bukan alert) */}
+      {/* POPUP SKOR */}
       {skorPopup.show && (
         <div
           style={{
@@ -488,6 +548,197 @@ export default function PertandinganContent() {
               }}
             >
               Selesai
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE CARD MODAL */}
+      {shareModal.show && shareModal.matchData && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px',
+            backdropFilter: 'blur(4px)',
+          }}
+          onClick={closeShare}
+        >
+          <div
+            style={{ position: 'relative', maxWidth: '320px', width: '100%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeShare}
+              style={{
+                position: 'absolute',
+                top: '-48px',
+                right: '0',
+                background: 'rgba(255,255,255,0.15)',
+                border: 'none',
+                color: '#fff',
+                fontSize: '24px',
+                cursor: 'pointer',
+                padding: '6px 12px',
+                borderRadius: '30px',
+                backdropFilter: 'blur(4px)',
+              }}
+            >
+              ✕
+            </button>
+
+            <div
+              id="shareCard"
+              style={{
+                width: '270px',
+                height: '480px',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                position: 'relative',
+                margin: '0 auto',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+                background: '#0a0a0a',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'flex-end',
+                padding: '24px',
+                color: '#fff',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '70%',
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.45) 50%, rgba(0,0,0,0) 100%)',
+                  pointerEvents: 'none',
+                  zIndex: 1,
+                }}
+              />
+
+              <div
+                style={{
+                  position: 'relative',
+                  zIndex: 2,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    letterSpacing: '2px',
+                    textTransform: 'uppercase',
+                    opacity: 0.6,
+                    marginBottom: '4px',
+                    color: shareModal.matchData.hasil === 'Menang' ? '#4CAF50' : '#EF5350',
+                  }}
+                >
+                  {shareModal.matchData.hasil || ''}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '72px',
+                    fontWeight: '700',
+                    lineHeight: 1,
+                    letterSpacing: '-2px',
+                    marginBottom: '2px',
+                  }}
+                >
+                  {shareModal.matchData.skor || '-'}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: '400',
+                    opacity: 0.8,
+                    marginBottom: '12px',
+                  }}
+                >
+                  vs {shareModal.matchData.opponent?.nama || 'Opponent'}
+                  {shareModal.matchData.opponent?.tier && (
+                    <span> · {shareModal.matchData.opponent.tier}</span>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    width: '60px',
+                    height: '1px',
+                    background: 'rgba(255,255,255,0.2)',
+                    marginBottom: '12px',
+                  }}
+                />
+
+                <div
+                  style={{
+                    fontSize: '22px',
+                    fontWeight: '600',
+                    marginBottom: '4px',
+                  }}
+                >
+                  {user?.rank || 'Rintis'}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: '400',
+                    opacity: 0.7,
+                    marginBottom: '12px',
+                  }}
+                >
+                  🔥 0 streak · #0 {user?.kota || ''} · 0%
+                </div>
+
+                <div
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: '400',
+                    opacity: 0.25,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}
+                >
+                  billiard.id
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={downloadShare}
+              disabled={shareLoading}
+              style={{
+                display: 'block',
+                width: '100%',
+                marginTop: '18px',
+                padding: '14px',
+                background: '#fff',
+                border: 'none',
+                borderRadius: '40px',
+                fontWeight: '600',
+                fontSize: '15px',
+                color: '#000',
+                cursor: shareLoading ? 'default' : 'pointer',
+                opacity: shareLoading ? 0.7 : 1,
+              }}
+            >
+              {shareLoading ? 'Menyiapkan...' : '⬇️ Download & Share'}
             </button>
           </div>
         </div>
