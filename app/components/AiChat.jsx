@@ -89,7 +89,6 @@ export default function AiChat() {
   const renderBotMessage = (msg) => {
     let html = msg.text;
 
-    // Render player cards if data exists
     if (msg.data && msg.data.length > 0) {
       html += '<div class="player-cards">';
       msg.data.forEach((p, i) => {
@@ -123,79 +122,84 @@ export default function AiChat() {
     return <div dangerouslySetInnerHTML={{ __html: html }} />;
   };
 
-  return (
-    <>
-      {/* Floating Button */}
+  if (!isOpen) {
+    return (
       <button
         className={styles.floatingButton}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen(true)}
         aria-label="AI Assistant"
       >
-        {isOpen ? '✕' : '💬'}
+        💬
       </button>
+    );
+  }
 
-      {/* Chat Popup */}
-      {isOpen && (
-        <div className={styles.chatPopup}>
-          <div className={styles.chatHeader}>
-            <span>AI Assistant</span>
-          </div>
-          <div className={styles.chatMessages}>
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`${styles.message} ${msg.role === 'user' ? styles.user : styles.bot}`}
-              >
-                <div className={styles.messageBubble}>
-                  {msg.role === 'bot' ? renderBotMessage(msg) : msg.text}
-                </div>
+  return (
+    <>
+      <button
+        className={styles.floatingButton}
+        onClick={() => setIsOpen(false)}
+        aria-label="Tutup"
+      >
+        ✕
+      </button>
+      <div className={styles.chatPopup}>
+        <div className={styles.chatHeader}>
+          <span>AI Assistant</span>
+        </div>
+        <div className={styles.chatMessages}>
+          {messages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`${styles.message} ${msg.role === 'user' ? styles.user : styles.bot}`}
+            >
+              <div className={styles.messageBubble}>
+                {msg.role === 'bot' ? renderBotMessage(msg) : msg.text}
               </div>
-            ))}
-            {loading && (
-              <div className={`${styles.message} ${styles.bot}`}>
-                <div className={styles.messageBubble}>
-                  <span className={styles.typing}>...</span>
-                </div>
+            </div>
+          ))}
+          {loading && (
+            <div className={`${styles.message} ${styles.bot}`}>
+              <div className={styles.messageBubble}>
+                <span className={styles.typing}>...</span>
               </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
-          {/* Quick Replies */}
-          <div className={styles.quickReplies}>
-            {QUICK_REPLIES.map((q, i) => (
-              <button
-                key={i}
-                className={styles.quickReplyBtn}
-                onClick={() => sendMessage(q)}
-                disabled={loading}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-
-          {/* Input */}
-          <div className={styles.chatInputContainer}>
-            <input
-              type="text"
-              className={styles.chatInput}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-              placeholder="Tulis pesan..."
-              disabled={loading}
-            />
+        <div className={styles.quickReplies}>
+          {QUICK_REPLIES.map((q, i) => (
             <button
-              className={styles.sendButton}
-              onClick={() => sendMessage()}
+              key={i}
+              className={styles.quickReplyBtn}
+              onClick={() => sendMessage(q)}
               disabled={loading}
             >
-              ↑
+              {q}
             </button>
-          </div>
+          ))}
         </div>
-      )}
+
+        <div className={styles.chatInputContainer}>
+          <input
+            type="text"
+            className={styles.chatInput}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+            placeholder="Tulis pesan..."
+            disabled={loading}
+          />
+          <button
+            className={styles.sendButton}
+            onClick={() => sendMessage()}
+            disabled={loading}
+          >
+            ↑
+          </button>
+        </div>
+      </div>
     </>
   );
 }

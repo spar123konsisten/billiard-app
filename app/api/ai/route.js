@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { parseIntent, getContext, setContext, mergeWithContext, clearContext } from '@/lib/ai/intent';
-import { getRanking, getStatistics, findPlayerByName, getRecommendation, clearRankingCache } from '@/lib/ai/ranking';
-import { formatResponse } from '@/lib/ai/utils';
-import { CITY_GROUPS } from '@/lib/ai/config';
+import { parseIntent, getContext, setContext, mergeWithContext, clearContext } from '@/app/lib/ai/intent';
+import { getRanking, getStatistics, findPlayerByName, getRecommendation, clearRankingCache } from '@/app/lib/ai/ranking';
+import { formatResponse } from '@/app/lib/ai/utils';
+import { CITY_GROUPS } from '@/app/lib/ai/config';
 
 // ===== GET CITY ALIASES =====
 function getCityAliases(city) {
