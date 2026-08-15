@@ -2,12 +2,11 @@ import { TIER_ORDER, TIER_SYNONYMS, CITY_GROUPS, FILLER_WORDS } from './config.j
 
 // ===== NORMALIZE =====
 export function normalizeInput(input) {
-  let text = input
+  return String(input)
     .toLowerCase()
-    .replace(/(.)\1{2,}/g, '$1') // remove repeated chars
+    .replace(/(.)\1{2,}/g, '$1')
     .replace(/\s+/g, ' ')
     .trim();
-  return text;
 }
 
 // ===== IS SUBSEQUENCE =====
@@ -17,6 +16,27 @@ function isSubsequence(needle, haystack) {
     if (haystack[i] === needle[pos]) pos++;
   }
   return pos === needle.length;
+}
+
+// ===== LEVENSHTEIN (exported untuk reuse di intent.js) =====
+export function levenshtein(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b[i - 1] === a[j - 1]) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
 }
 
 // ===== EXTRACT TIER =====
@@ -86,70 +106,51 @@ export function extractCity(input) {
 export function extractNumber(input) {
   let match;
 
-  // "top N"
   if ((match = input.match(/top\s*(\d+)/i))) return parseInt(match[1]);
-  // "N pemain/orang/teratas"
   if ((match = input.match(/(\d+)\s*(pemain|orang|besar|teratas)/i))) return parseInt(match[1]);
-  // "peringkat/ranking ke N"
   if ((match = input.match(/(peringkat|ranking|rank|nomor|juara)\s*(ke\s*-?\s*)?(\d+)/i))) return parseInt(match[3]);
-  // "pertama/satu"
   if (input.match(/(peringkat|ranking|rank|nomor|juara)\s*(pertama|satu|teratas|atas)/i)) return 1;
   if (input.match(/\b(1|satu|pertama)\b/i)) return 1;
 
   return null;
 }
 
-// ===== EXTRACT PLAYER NAME =====
+// ===== EXTRACT PLAYER NAME (FIXED) =====
 export function extractPlayerName(input) {
   const text = normalizeInput(input);
   const words = text.split(/\s+/);
 
-  // Build skip list
+  // Keywords yang trigger capture (TIDAK boleh di skip)
+  const keywords = new Set(['pemain', 'user', 'nama', 'profile', 'profil', 'cari', 'tentang', 'vs', 'lawan', 'dengan', 'sama']);
+
+  // Skip list (kata yang TIDAK boleh dianggap nama)
   const skip = new Set([
     ...FILLER_WORDS,
     ...Object.keys(TIER_ORDER),
     ...Object.values(TIER_SYNONYMS).flat(),
     ...Object.values(CITY_GROUPS).flat(),
     ...Object.keys(CITY_GROUPS).map(g => g.toLowerCase()),
-    'top', 'peringkat', 'ranking', 'rank', 'juara', 'nomor', 'vs', 'lawan',
-    'dengan', 'sama', 'pemain', 'user', 'nama', 'profile', 'profil', 'cari',
-    'tentang', 'siapa', 'ada', 'the',
+    'top', 'peringkat', 'ranking', 'rank', 'juara', 'nomor',
+    'tier', 'kota', 'siapa', 'ada', 'the',
   ]);
 
-  const keywords = ['pemain', 'user', 'nama', 'profile', 'profil', 'cari', 'tentang', 'vs', 'lawan', 'dengan', 'sama'];
   let captured = [];
   let capture = false;
 
   for (const word of words) {
-    if (skip.has(word)) { capture = false; continue; }
-    if (capture && /^[a-z0-9]+$/.test(word)) captured.push(word);
-    if (keywords.includes(word)) capture = true;
+    // 1. Keyword trigger capture
+    if (keywords.has(word)) {
+      capture = true;
+    }
+    // 2. Skip word reset capture
+    else if (skip.has(word)) {
+      capture = false;
+    }
+    // 3. Capture alphanumeric jika capture aktif
+    else if (capture && /^[a-z0-9]+$/.test(word)) {
+      captured.push(word);
+    }
   }
 
   return captured.length > 0 ? captured.join(' ') : null;
-}
-
-// ===== LEVENSHTEIN (simple) =====
-function levenshtein(a, b) {
-  const matrix = [];
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b[i - 1] === a[j - 1]) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-  return matrix[b.length][a.length];
 }

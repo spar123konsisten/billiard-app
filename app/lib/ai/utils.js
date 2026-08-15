@@ -11,7 +11,7 @@ export function formatResponse(parsed, data, intent) {
   const city = entities.city || '';
   const limit = entities.limit || (Array.isArray(data) ? data.length : 0);
 
-  // Statistics
+  // ===== 1. STATISTICS =====
   if (intent === 'get_statistics' || intent === 'get_distribution') {
     const s = data;
     if (!s || typeof s !== 'object' || !s.total) {
@@ -22,26 +22,50 @@ export function formatResponse(parsed, data, intent) {
     msg += `• Rata-rata bintang: <strong>${s.avg_stars}</strong><br>`;
     msg += `• Rata-rata streak: <strong>${s.avg_streak}</strong><br><br>`;
     msg += `<strong>Distribusi per tier:</strong><br>`;
-    for (const [t, c] of Object.entries(s.by_tier)) {
-      msg += `&nbsp;&nbsp;• ${t}: ${c}<br>`;
-    }
+    for (const [t, c] of Object.entries(s.by_tier)) msg += `&nbsp;&nbsp;• ${t}: ${c}<br>`;
     msg += `<br><strong>Distribusi per kota:</strong><br>`;
-    for (const [c, n] of Object.entries(s.by_city)) {
-      if (n > 0) msg += `&nbsp;&nbsp;• ${c}: ${n}<br>`;
-    }
+    for (const [c, n] of Object.entries(s.by_city)) if (n > 0) msg += `&nbsp;&nbsp;• ${c}: ${n}<br>`;
     return { success: true, message: confidenceLabel(confidence) + msg, data: [], type: 'stats' };
   }
 
-  // Empty data
+  // ===== 2. PASSTHROUGH OBJEK LENGKAP (WAJIB SEBELUM EMPTY CHECK!) =====
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    // Error message dari riwayat (getLastMatch, getMatchScore)
+    if (data._custom_message) {
+      return {
+        success: true,
+        message: confidenceLabel(confidence) + data._custom_message,
+        data: [],
+        type: intent,
+      };
+    }
+    // Objek lengkap dari compare/recommendation/match_result
+    if ('data' in data || 'extra' in data || 'message' in data) {
+      return {
+        success: data.success !== undefined ? data.success : true,
+        message: confidenceLabel(confidence) + (data.message || 'Hasil pencarian:'),
+        data: Array.isArray(data.data) ? data.data : [],
+        type: intent,
+        extra: data.extra || {},
+      };
+    }
+  }
+
+  // ===== 3. EMPTY DATA (hanya untuk array kosong) =====
   if (!data || (Array.isArray(data) && data.length === 0)) {
     let debug = '';
     if (tier || city) {
       debug = ` (Filter: ${tier ? `tier=${tier}` : ''}${tier && city ? ', ' : ''}${city ? `kota=${city}` : ''})`;
     }
-    return { success: true, message: confidenceLabel(confidence) + `Tidak ada data yang sesuai dengan pencarian Anda.${debug}`, data: [], type: 'empty' };
+    return {
+      success: true,
+      message: confidenceLabel(confidence) + `Tidak ada data yang sesuai dengan pencarian Anda.${debug}`,
+      data: [],
+      type: 'empty',
+    };
   }
 
-  // Build message
+  // ===== 4. ARRAY PEMAIN (default) =====
   let message = 'Hasil pencarian:';
   switch (intent) {
     case 'get_top_rank': message = 'Peringkat 1 saat ini:'; break;

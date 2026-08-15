@@ -46,7 +46,7 @@ export const CITY_GROUPS = {
   Cirebon: ['cirebon'],
 };
 
-// ===== FILLER WORDS (diabaikan saat parsing) =====
+// ===== FILLER WORDS =====
 export const FILLER_WORDS = [
   'min', 'admin', 'kak', 'kakak', 'bang', 'pak', 'bu', 'ibu', 'mas', 'mbak', 'gan', 'bro', 'sis', 'bos',
   'tolong', 'coba', 'dong', 'deh', 'sih', 'nih', 'tuh', 'yah', 'ya', 'kalo', 'kalau', 'misal', 'misalnya', 'contoh',
@@ -57,9 +57,19 @@ export const FILLER_WORDS = [
   'billiard', 'biliar', 'pool', 'bola', 'olahraga', 'sport',
 ];
 
+// ===== QUICK REPLIES =====
 export const QUICK_REPLIES = [
   'siapa peringkat 1?',
   'top 5 pemain',
   'siapa tier rintis?',
   'refresh data',
+];
+
+// ===== CURRENT USER (placeholder — nanti diganti dari session login) =====
+export const CURRENT_USER_ID = 'e2025d09-be6f-43d0-bc0d-240dab389dc4';
+
+// ===== REFRESH KEYWORDS =====
+export const REFRESH_KEYWORDS = [
+  'refresh', 'refresh data', 'segarkan', 'update data',
+  'data terbaru', 'ambil data terbaru', 'reload data', 'muat ulang',
 ];

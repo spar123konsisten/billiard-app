@@ -1,5 +1,65 @@
 import { extractTier, extractCity, extractNumber, extractPlayerName, normalizeInput } from './nlp.js';
-import { FILLER_WORDS } from './config.js';
+import { FILLER_WORDS, TIER_ORDER, TIER_SYNONYMS, CITY_GROUPS } from './config.js';
+
+
+// ===== LEVENSHTEIN compact =====
+function lev(a, b) {
+  const m = [];
+  for (let i = 0; i <= b.length; i++) m[i] = [i];
+  for (let j = 0; j <= a.length; j++) m[0][j] = j;
+  for (let i = 1; i <= b.length; i++)
+    for (let j = 1; j <= a.length; j++)
+      m[i][j] = b[i-1] === a[j-1]
+        ? m[i-1][j-1]
+        : Math.min(m[i-1][j-1]+1, m[i][j-1]+1, m[i-1][j]+1);
+  return m[b.length][a.length];
+}
+
+// ===== Fuzzy keyword matcher =====
+function hasFuzzy(text, keywords, maxDist = 1) {
+  const words = text.split(/\s+/);
+  for (const w of words) {
+    if (w.length < 3) continue;
+    for (const k of keywords) {
+      if (w === k) return true;
+      if (Math.abs(w.length - k.length) <= maxDist && lev(w, k) <= maxDist) return true;
+    }
+  }
+  return false;
+}
+
+// ===== KATEGORI REKOMENDASI =====
+const CORE_OPP = ['lawan','lwan','lawam','oponen','opponent'];
+const STRONG_CTX = ['rekomendasi','rekomend','rekomen','rekomendasii',
+                    'sparring','sparing','sparin','sparrin',
+                    'partner','patner','partnerr','patnerr'];
+const SOFT_CTX = ['cari','cariin','carikan','butuh','butu','perlu',
+                  'kasih','kasihin','beri','berikan','ada',
+                  'siapa','siappa','cocok','cocokk','pas','pass',
+                  'setara','setra','setar','seimbang','seimban',
+                  'tanding','tandig','tandingg','main','maen','mian',
+                  'teman','temen','temann'];
+
+function isRecommendIntent(clean) {
+  const strong = hasFuzzy(clean, STRONG_CTX, 1);
+  const core   = hasFuzzy(clean, CORE_OPP, 1);
+  const soft   = hasFuzzy(clean, SOFT_CTX, 1);
+  return strong || (core && soft);
+}
+
+// ===== EXTRACT NAMA TARGET REKOMENDASI =====
+function extractRecommendationName(clean) {
+  const skip = new Set([
+    ...FILLER_WORDS,
+    ...CORE_OPP, ...STRONG_CTX, ...SOFT_CTX,
+    ...Object.keys(TIER_ORDER),
+    ...Object.values(TIER_SYNONYMS).flat(),
+    ...Object.keys(CITY_GROUPS).map(g => g.toLowerCase()),
+    ...Object.values(CITY_GROUPS).flat(),
+  ]);
+  const words = clean.split(/\s+/).filter(w => w && !skip.has(w) && !/^\d+$/.test(w) && w.length >= 2);
+  return words.length ? words.join(' ') : null;
+}
 
 // ===== PARSE INTENT =====
 export function parseIntent(input) {
@@ -40,8 +100,12 @@ export function parseIntent(input) {
     const m = clean.match(/([a-z0-9]+)\s+(?:vs|lawan|sama|dengan)\s+([a-z0-9]+)/i);
     if (m) { entities.name1 = m[1]; entities.name2 = m[2]; }
   }
-  else if (clean.match(/(rekomendasi|rekomend|lawan\s*tanding|partner|cocok|match)/i)) {
+  // ✅ FIX: pakai fuzzy matcher, bukan regex lama
+  else if (isRecommendIntent(clean)) {
     intent = 'get_recommendation';
+    // Extract nama target (kalau ada). Kalau null → nanti pakai current user
+    const targetName = extractRecommendationName(clean);
+    if (targetName) entities.name = targetName;
   }
   else if (clean.match(/(peringkat|ranking|rank|juara|nomor)\s*(?:ke\s*-?\s*)?1\b/i) ||
            clean.match(/(peringkat|ranking|rank|juara|nomor)\s*(pertama|satu|teratas)/i)) {

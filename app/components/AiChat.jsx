@@ -113,6 +113,13 @@ export default function AiChat() {
               <span class="${styles.playerStars}">${bintang}</span>
               ${p.streak > 0 ? `<span class="${styles.playerStreak}">🔥 ${p.streak} streak</span>` : ''}
             </div>
+            ${p.username ? `
+              <div class="${styles.sparringWrap}">
+                <a href="/u/${p.username}" class="${styles.sparringButton}">
+                  🤝 Ajak Sparring
+                </a>
+              </div>
+            ` : ''}
           </div>
         `;
       });

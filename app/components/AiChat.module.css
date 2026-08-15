@@ -396,3 +396,37 @@
   opacity: 0.3;
   cursor: not-allowed;
 }
+/* ===== SPARRING BUTTON ===== */
+.sparringWrap {
+  padding: 8px 14px 12px;
+  border-top: 1px solid #eee;
+}
+
+.sparringButton {
+  display: block;
+  width: 100%;
+  padding: 8px 16px;
+  background: #171717;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  letter-spacing: 0.2px;
+  box-sizing: border-box;
+}
+
+.sparringButton:hover {
+  background: #0a0a0a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.sparringButton:active {
+  transform: translateY(0);
+}
