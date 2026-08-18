@@ -175,36 +175,47 @@ export async function comparePlayers(name1, name2) {
 }
 
 // ===== GET RECOMMENDATION (UPDATE: support current user fallback) =====
-export async function getRecommendation(targetName = null) {
+export async function getRecommendation(refName = null, cityFilter = null, limit = 3) {
   const all = await fetchAllRanking();
 
+  // Filter kota eksplisit ("di jakarta")
+  let pool = all;
+  if (cityFilter) {
+    const aliases = (CITY_GROUPS[cityFilter] || [cityFilter]).map(a => a.toLowerCase());
+    pool = pool.filter(p => aliases.includes(p.kota_lower));
+  }
+
   let ref = null;
-  if (targetName) {
-    ref = findPlayerByName(targetName);
-    if (!ref) return { message: `Pemain "${targetName}" tidak ditemukan.`, data: [] };
-  } else {
-    ref = all.find(p => p.id === CURRENT_USER_ID || p.user_id === CURRENT_USER_ID);
-    if (!ref) return { message: 'Anda belum terdaftar di ranking. Silakan daftar dulu.', data: [] };
+  if (refName) {
+    ref = findPlayerByName(refName);
+    if (!ref) return { message: `Pemain "${refName}" tidak ditemukan.`, data: [] };
   }
 
-  const candidates = [];
-  for (const p of all) {
+  // ===== GUEST / tanpa referensi: return TOP sesuai pertanyaan =====
+  if (!ref) {
+    const sorted = [...pool].sort((a, b) =>
+      a.tier_order !== b.tier_order ? b.tier_order - a.tier_order : b.bintang - a.bintang);
+    return {
+      message: 'Pemain teratas' + (cityFilter ? ` di ${cityFilter}` : '') + ':',
+      data: sorted.slice(0, limit),
+    };
+  }
+
+  // ===== LOGIN: scoring kemiripan =====
+  const cand = [];
+  for (const p of pool) {
     if (p.id === ref.id) continue;
-    let score = 0;
-    if (p.kota_lower === ref.kota_lower) score += 3;
-    const diff = Math.abs(p.tier_order - ref.tier_order);
-    if (diff === 0) score += 3;
-    else if (diff === 1) score += 2;
-    else if (diff === 2) score += 1;
-    if (Math.abs(p.streak - ref.streak) <= 2) score += 1;
-    candidates.push({ player: p, score });
+    let s = 0;
+    if (p.kota_lower === ref.kota_lower) s += 3;
+    const d = Math.abs(p.tier_order - ref.tier_order);
+    if (d === 0) s += 3; else if (d === 1) s += 2; else if (d === 2) s += 1;
+    if (Math.abs(p.streak - ref.streak) <= 2) s += 1;
+    cand.push({ player: p, score: s });
   }
-
-  candidates.sort((a, b) => b.score - a.score);
-  const top = candidates.slice(0, 3).map(c => ({ ...c.player, match_score: c.score }));
+  cand.sort((a, b) => b.score - a.score);
   return {
     message: `Rekomendasi lawan tanding untuk ${ref.nama}:`,
-    data: top,
+    data: cand.slice(0, limit).map(c => ({ ...c.player, match_score: c.score })),
   };
 }
 
