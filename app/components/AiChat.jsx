@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './AiChat.module.css';
+import { useVoiceInput } from './useVoiceInput';
 
 const QUICK_REPLIES = ['siapa peringkat 1?','top 5 pemain','siapa tier rintis?','refresh data'];
 
@@ -22,6 +23,9 @@ export default function AiChat(){
   const [reasonIdx,setReasonIdx]=useState(null);
   const [reasonText,setReasonText]=useState('');
   const messagesEndRef=useRef(null);
+
+  // 👇 Hook voice DI DALAM KOMPONEN (setelah state, sebelum useEffect)
+  const voice = useVoiceInput({ onResult: (t) => sendMessage(t) });
 
   useEffect(()=>{ messagesEndRef.current?.scrollIntoView({behavior:'smooth'}); },[messages]);
 
@@ -205,8 +209,21 @@ export default function AiChat(){
         ))}
       </div>
 
-      {/* ===== INPUT ===== */}
+      {/* ===== STATUS VOICE (muncul hanya saat aktif) ===== */}
+      {voice.status && <div className={styles.voiceStatus}>{voice.status}</div>}
+
+      {/* ===== INPUT + MIC ===== */}
       <div className={styles.chatInputContainer}>
+        {voice.supported && (
+          <button
+            className={`${styles.micButton} ${voice.listening ? styles.micListening : ''}`}
+            onClick={voice.toggleMic}
+            disabled={voice.processing || loading}
+            aria-label="Input suara"
+          >
+            {voice.processing ? '⏳' : voice.listening ? '⏹' : '🎤'}
+          </button>
+        )}
         <input
           type="text"
           className={styles.chatInput}
