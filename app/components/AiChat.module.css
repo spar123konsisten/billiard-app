@@ -19,7 +19,16 @@
   align-items: center;
   justify-content: center;
 }
-
+/* ===== HP: sisakan "refresh data" aja ===== */
+@media (max-width: 640px) {
+  .quickReplyBtn:not(:last-child) {
+    display: none;
+  }
+  /* biar baris quick replies tidak makan tinggi */
+  .quickReplies {
+    padding: 8px 16px;
+  }
+}
 .floatingButton:hover {
   background: #fafafa;
   border-color: #d4d4d4;
