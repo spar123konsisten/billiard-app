@@ -2,8 +2,7 @@
 import { useRef, useState, useEffect } from 'react';
 
 // ===== KONFIGURASI =====
-const WHISPER_MODEL = 'Xenova/whisper-tiny'; // ganti 'Xenova/whisper-small' utk akurasi lebih tinggi
-const SILENCE_MS    = 2000;  // diam 2 dtk -> auto stop+kirim
+const WHISPER_MODEL = 'Xenova/whisper-medium'; // akurasi jauh lebih baik, tetap lokalconst SILENCE_MS    = 2000;  // diam 2 dtk -> auto stop+kirim
 const MAX_MS        = 15000; // maks rekam
 const NO_SPEECH_MS  = 8000;  // tanpa suara -> auto close
 const RMS_THRESHOLD = 0.02;  // ambang suara
@@ -96,7 +95,9 @@ export function useVoiceInput({ onResult }) {
   };
 
   const start = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+  audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+});
     const AC = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AC();
     const src = audioCtx.createMediaStreamSource(stream);
