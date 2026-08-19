@@ -24,18 +24,14 @@ export default function AiChat(){
   const [reasonText,setReasonText]=useState('');
   const messagesEndRef=useRef(null);
 
-  // 👇 Hook voice DI DALAM KOMPONEN (setelah state, sebelum useEffect)
+  // 👇 Hook voice DI DALAM KOMPONEN
   const voice = useVoiceInput({ onResult: (t) => sendMessage(t) });
 
   useEffect(()=>{ messagesEndRef.current?.scrollIntoView({behavior:'smooth'}); },[messages]);
 
-  // Kunci scroll body saat chat terbuka (biar halaman belakang tidak ikut ke-scroll)
   useEffect(()=>{
-    if(isOpen){
-      document.body.style.overflow='hidden';
-    }else{
-      document.body.style.overflow='';
-    }
+    if(isOpen){ document.body.style.overflow='hidden'; }
+    else{ document.body.style.overflow=''; }
     return ()=>{ document.body.style.overflow=''; };
   },[isOpen]);
 
@@ -103,10 +99,9 @@ export default function AiChat(){
 
   if(!isOpen) return <button className={styles.floatingButton} onClick={()=>setIsOpen(true)} aria-label="AI Assistant">💬</button>;
 
-  // Popup dirender via Portal ke body, biar full-screen tanpa terganggu layout induk
   return createPortal(
     <div className={styles.chatPopup}>
-      {/* ===== HEADER (judul kiri, close kanan) ===== */}
+      {/* ===== HEADER ===== */}
       <div className={styles.chatHeader}>
         <span>AI Assistant</span>
         <button
@@ -116,7 +111,7 @@ export default function AiChat(){
         >✕</button>
       </div>
 
-      {/* ===== WATERMARK "billiard" DI TENGAH ===== */}
+      {/* ===== WATERMARK ===== */}
       <div className={styles.watermark}>billiard</div>
 
       {/* ===== MESSAGES ===== */}
@@ -129,7 +124,6 @@ export default function AiChat(){
             <div className={styles.messageBubble}>
               {msg.role === 'bot' ? renderBotMessage(msg) : msg.text}
 
-              {/* Tombol feedback 👍👎 */}
               {msg.role === 'bot' && (
                 <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
                   <button
@@ -144,7 +138,6 @@ export default function AiChat(){
                       opacity: msg.feedback && msg.feedback !== 'helpful' ? 0.4 : 1,
                     }}
                   >👍</button>
-
                   <button
                     onClick={() => { setReasonIdx(idx); setReasonText(''); }}
                     disabled={!!msg.feedback}
@@ -160,7 +153,6 @@ export default function AiChat(){
                 </div>
               )}
 
-              {/* Form alasan (muncul setelah klik 👎) */}
               {msg.role === 'bot' && reasonIdx === idx && (
                 <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <textarea
@@ -209,21 +201,55 @@ export default function AiChat(){
         ))}
       </div>
 
-      {/* ===== STATUS VOICE (muncul hanya saat aktif) ===== */}
-      {voice.status && <div className={styles.voiceStatus}>{voice.status}</div>}
+      {/* ===== STATUS VOICE ===== */}
+      {voice.status && (
+        <div style={{
+          textAlign: 'center',
+          fontSize: 12,
+          color: voice.status.includes('🙁') ? '#dc2626' : '#737373',
+          padding: '4px 0 0',
+        }}>
+          {voice.status}
+        </div>
+      )}
 
-      {/* ===== INPUT + MIC ===== */}
+      {/* ===== INPUT + MIC (PAKSA TAMPIL, INLINE STYLE + SVG) ===== */}
       <div className={styles.chatInputContainer}>
-        {voice.supported && (
-          <button
-            className={`${styles.micButton} ${voice.listening ? styles.micListening : ''}`}
-            onClick={voice.toggleMic}
-            disabled={voice.processing || loading}
-            aria-label="Input suara"
-          >
-            {voice.processing ? '⏳' : voice.listening ? '⏹' : '🎤'}
-          </button>
-        )}
+        <button
+          onClick={voice.toggleMic}
+          disabled={voice.processing || loading}
+          aria-label="Input suara"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            border: '1px solid ' + (voice.listening ? '#dc2626' : '#e5e5e5'),
+            background: voice.listening ? '#dc2626' : '#ffffff',
+            color: voice.listening ? '#fff' : '#171717',
+            cursor: 'pointer',
+            flexShrink: 0,
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s',
+          }}
+        >
+          {voice.processing ? (
+            <span style={{ fontSize: 16 }}>⏳</span>
+          ) : voice.listening ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="5" y="5" width="14" height="14" rx="2"/>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="9" y="2" width="6" height="12" rx="3"/>
+              <path d="M5 10v1a7 7 0 0 0 14 0v-1"/>
+              <line x1="12" y1="18" x2="12" y2="22"/>
+            </svg>
+          )}
+        </button>
+
         <input
           type="text"
           className={styles.chatInput}

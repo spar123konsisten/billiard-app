@@ -74,7 +74,6 @@ async function getMatchesFor(uid){
 function buildMatchResponse(player,entry,match){
   const oppId=match.challenger_id===player.id?match.challenged_id:match.challenger_id;
   const opp={nama:'Tamu',foto_url:'',tier:'',bintang:0,streak:0,kota:'',username:''};
-  // isi opp sinkron tidak mungkin; pakai guest_name dulu
   if(match.guest_name) opp.nama=match.guest_name;
   const s1=Number(entry.skor_sendiri)||0, s2=Number(entry.skor_lawan)||0;
   const winner=s1>s2?player.nama:(s2>s1?opp.nama:'SERI');
@@ -184,17 +183,20 @@ export async function POST(request){
     setContext(parsed.intent,parsed.entities);
     const result=await executeQuery(parsed,{username,userInput});
 
-    let disclaimer='', qid=null;
+    // ✅ UBAHAN: Hapus disclaimer "Apakah maksud Anda tentang..."
+    // Tetap log ke unknown_queries untuk learning loop, tapi tidak tampilkan disclaimer ke user
+    let qid=null;
     if(conf>=0.3&&conf<0.5){
       qid=await upsertUnknownQuery({query:userInput,fp,entities:parsed.entities,confidence:conf,intentGuess:parsed.intent,userId,sessionId});
-      disclaimer=`\n\nApakah maksud Anda tentang ${intentLabel(parsed.intent)}?`;
     }
 
-    if(result&&result._custom_message) return NextResponse.json({success:true,message:result._custom_message+disclaimer,data:[],type:parsed.intent,query_id:qid,fingerprint:fp});
+    if(result&&result._custom_message){
+      return NextResponse.json({success:true,message:result._custom_message,data:[],type:parsed.intent,query_id:qid,fingerprint:fp});
+    }
 
     const response=formatResponse(parsed,result,parsed.intent);
-    if(disclaimer) response.message+=disclaimer;
-    response.query_id=qid; response.fingerprint=fp;
+    response.query_id=qid;
+    response.fingerprint=fp;
     return NextResponse.json(response);
   }catch(err){
     console.error('AI API error:',err);

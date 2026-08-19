@@ -2,9 +2,10 @@
 import { useRef, useState, useEffect } from 'react';
 
 // ===== KONFIGURASI =====
-const WHISPER_MODEL = 'Xenova/whisper-medium'; // akurasi jauh lebih baik, tetap lokalconst SILENCE_MS    = 2000;  // diam 2 dtk -> auto stop+kirim
-const MAX_MS        = 15000; // maks rekam
-const NO_SPEECH_MS  = 8000;  // tanpa suara -> auto close
+const WHISPER_MODEL = 'Xenova/whisper-small';
+const SILENCE_MS    = 2000;  // diam 2 dtk -> auto stop+kirim
+const MAX_MS        = 15000; // maks rekam 15 dtk
+const NO_SPEECH_MS  = 8000;  // tanpa suara 8 dtk -> auto close
 const RMS_THRESHOLD = 0.02;  // ambang suara
 
 // ===== KAMUS KOREKSI DOMAIN (lokal) =====
@@ -88,6 +89,7 @@ export function useVoiceInput({ onResult }) {
       if (text) onResultRef.current(text);
       else flash('Tidak terdengar jelas 🙁');
     } catch (e) {
+      console.error('Voice error:', e);
       setProcessing(false);
       setStatus(null);
       flash('Gagal mentranskrip 🙁');
@@ -96,8 +98,12 @@ export function useVoiceInput({ onResult }) {
 
   const start = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
-  audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-});
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
     const AC = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AC();
     const src = audioCtx.createMediaStreamSource(stream);
@@ -155,6 +161,10 @@ export function useVoiceInput({ onResult }) {
   const toggleMic = async () => {
     if (processing) return;
     if (listening) { stopRef.current?.(); return; }
+    if (!supported) {
+      flash('Browser tidak mendukung mic 🙁');
+      return;
+    }
     try { await start(); }
     catch (e) { flash('Izin mic ditolak / tidak didukung 🙁'); }
   };
