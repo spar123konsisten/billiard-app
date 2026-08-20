@@ -17,17 +17,7 @@ function clientFingerprint(q){ return q.toLowerCase().split(' ').filter(w=>w.len
 
 export default function AiChat(){
   const [isOpen,setIsOpen]=useState(false);
-   const DEFAULT_MSGS = [{role:'bot',text:'Halo! Saya asisten ranking.\n\nTanyakan tentang peringkat pemain, statistik, atau refresh data.\n\nTier: SURA → MAUNG → TUAH → AMOK → MENTENG → ISEN → RINTIS'}];
-
-  const [messages,setMessages]=useState(()=>{
-    if(typeof window==='undefined') return DEFAULT_MSGS;
-    try{ const s=sessionStorage.getItem('ai_chat_msgs'); if(s) return JSON.parse(s); }catch{}
-    return DEFAULT_MSGS;
-  });
-
-  useEffect(()=>{
-    try{ sessionStorage.setItem('ai_chat_msgs', JSON.stringify(messages)); }catch{}
-  },[messages]);
+  const [messages,setMessages]=useState([{role:'bot',text:'Halo! Saya asisten ranking.\n\nTanyakan tentang peringkat pemain, statistik, atau refresh data.\n\nTier: SURA → MAUNG → TUAH → AMOK → MENTENG → ISEN → RINTIS'}]);
   const [input,setInput]=useState('');
   const [loading,setLoading]=useState(false);
   const [reasonIdx,setReasonIdx]=useState(null);
