@@ -96,66 +96,51 @@ export function useVoiceInput({ onResult }) {
     }
   };
 
-  const start = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
-    const AC = window.AudioContext || window.webkitAudioContext;
-    const audioCtx = new AC();
-    const src = audioCtx.createMediaStreamSource(stream);
-    const analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 512;
-    src.connect(analyser);
-    const buf = new Float32Array(analyser.fftSize);
+    const start = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { flash('Browser tidak mendukung voice 🙁'); return; }
 
-    const recorder = new MediaRecorder(stream);
-    const chunks = [];
-    const state = { start: Date.now(), lastSound: Date.now(), hasSpeech: false };
+    const recognition = new SR();
+    recognition.lang = 'id-ID';
+    recognition.interimResults = false;
+    recognition.continuous = false;      // 👈 auto-stop setelah diam, hemat memori
+    recognition.maxAlternatives = 1;
 
-    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    recorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
-      audioCtx.close();
-      await process(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }), state.hasSpeech);
+    const state = { start: Date.now(), hasSpeech: false };
+    let finalText = '';
+
+    recognition.onstart = () => { setListening(true); setStatus('Mendengarkan...'); };
+
+    recognition.onresult = (e) => {
+      state.hasSpeech = true;
+      for (let i = e.resultIndex; i < e.results.length; i++)
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript + ' ';
     };
 
-    recorder.start();
-    setListening(true);
-    setStatus('Mendengarkan...');
+    recognition.onerror = (e) => {
+      if (e.error === 'not-allowed') flash('Izin mic ditolak 🙁');
+      else if (e.error === 'no-speech') flash('Tidak terdengar apa-apa 🙁');
+      else if (e.error !== 'aborted') flash('Error: ' + e.error);
+    };
 
-    const timer = setInterval(() => {
-      analyser.getFloatTimeDomainData(buf);
-      let sum = 0;
-      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-      const rms = Math.sqrt(sum / buf.length);
-      const now = Date.now();
-      if (rms > RMS_THRESHOLD) {
-        state.hasSpeech = true;
-        state.lastSound = now;
-      }
-      const elapsed = now - state.start;
-
-      if (!state.hasSpeech && elapsed > NO_SPEECH_MS) {
-        clearInterval(timer);
-        setListening(false);
-        recorder.stop();
-        flash('Tidak terdengar apa-apa 🙁');
-      } else if ((state.hasSpeech && (now - state.lastSound) > SILENCE_MS) || elapsed > MAX_MS) {
-        clearInterval(timer);
-        setListening(false);
-        recorder.stop();
-      }
-    }, 200);
-
-    stopRef.current = () => {
-      clearInterval(timer);
+    recognition.onend = () => {          // 👈 dipanggil sekali, TIDAK restart
       setListening(false);
-      recorder.stop();
+      const text = postProcess(finalText.trim());
+      if (text) {
+        setProcessing(true); setStatus('Mengirim...');
+        setTimeout(() => { setProcessing(false); setStatus(null); onResultRef.current(text); }, 200);
+      } else if (state.hasSpeech) flash('Tidak terdengar jelas 🙁');
+      else setStatus(null);
     };
+
+    // Pengaman: kalau 8 dtk tidak ada suara sama sekali, tutup
+    const timer = setTimeout(() => {
+      if (!state.hasSpeech) { try { recognition.stop(); } catch {} flash('Tidak terdengar apa-apa 🙁'); }
+    }, 8000);
+
+    try { recognition.start(); } catch { flash('Gagal memulai voice 🙁'); }
+
+    stopRef.current = () => { clearTimeout(timer); try { recognition.stop(); } catch {} };
   };
 
   const toggleMic = async () => {
