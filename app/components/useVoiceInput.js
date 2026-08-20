@@ -66,8 +66,11 @@ export function useVoiceInput({ onResult }) {
   const onResultRef = useRef(onResult);
 
   useEffect(() => { onResultRef.current = onResult; });
+  // Kalau tab pindah/background (HP lock, ganti app), matikan mic biar tidak di-kill browser
   useEffect(() => {
-    setSupported(!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+    const onHide = () => { if (document.hidden) stopRef.current?.(); };
+    document.addEventListener('visibilitychange', onHide);
+    return () => document.removeEventListener('visibilitychange', onHide);
   }, []);
 
   const flash = (msg) => {

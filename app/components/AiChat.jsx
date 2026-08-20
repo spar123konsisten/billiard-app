@@ -7,6 +7,9 @@ import { useVoiceInput } from './useVoiceInput';
 
 const QUICK_REPLIES = ['siapa peringkat 1?','top 5 pemain','siapa tier rintis?','refresh data'];
 
+// Pesan default (untuk init & kalau sessionStorage kosong)
+const DEFAULT_MSGS = [{role:'bot',text:'Halo! Saya asisten ranking.\n\nTanyakan tentang peringkat pemain, statistik, atau refresh data.\n\nTier: SURA → MAUNG → TUAH → AMOK → MENTENG → ISEN → RINTIS'}];
+
 function getSessionId(){
   if(typeof window==='undefined') return null;
   let id=localStorage.getItem('ai_session_id');
@@ -17,12 +20,24 @@ function clientFingerprint(q){ return q.toLowerCase().split(' ').filter(w=>w.len
 
 export default function AiChat(){
   const [isOpen,setIsOpen]=useState(false);
-  const [messages,setMessages]=useState([{role:'bot',text:'Halo! Saya asisten ranking.\n\nTanyakan tentang peringkat pemain, statistik, atau refresh data.\n\nTier: SURA → MAUNG → TUAH → AMOK → MENTENG → ISEN → RINTIS'}]);
+
+  // ✅ PAKAI sessionStorage: kalau HP refresh, chat tidak hilang
+  const [messages,setMessages]=useState(()=>{
+    if(typeof window==='undefined') return DEFAULT_MSGS;
+    try{ const s=sessionStorage.getItem('ai_chat_msgs'); if(s) return JSON.parse(s); }catch{}
+    return DEFAULT_MSGS;
+  });
+
   const [input,setInput]=useState('');
   const [loading,setLoading]=useState(false);
   const [reasonIdx,setReasonIdx]=useState(null);
   const [reasonText,setReasonText]=useState('');
   const messagesEndRef=useRef(null);
+
+  // ✅ Simpan chat ke sessionStorage setiap ada perubahan
+  useEffect(()=>{
+    try{ sessionStorage.setItem('ai_chat_msgs', JSON.stringify(messages)); }catch{}
+  },[messages]);
 
   // 👇 Hook voice DI DALAM KOMPONEN
   const voice = useVoiceInput({ onResult: (t) => sendMessage(t) });
@@ -213,7 +228,7 @@ export default function AiChat(){
         </div>
       )}
 
-      {/* ===== INPUT + MIC (PAKSA TAMPIL, INLINE STYLE + SVG) ===== */}
+      {/* ===== INPUT + MIC ===== */}
       <div className={styles.chatInputContainer}>
         <button
           onClick={voice.toggleMic}
