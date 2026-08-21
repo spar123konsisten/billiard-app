@@ -3,9 +3,9 @@ import { useRef, useState, useEffect } from 'react';
 
 // ===== KONFIGURASI =====
 const WHISPER_MODEL = 'Xenova/whisper-small';
-const SILENCE_MS    = 2000;  // diam 2 dtk -> auto stop+kirim
-const MAX_MS        = 15000; // maks rekam 15 dtk
-const NO_SPEECH_MS  = 8000;  // tanpa suara 8 dtk -> auto close
+const SILENCE_MS = 2000;  // diam 2 dtk -> auto stop+kirim
+const MAX_MS = 15000; // maks rekam 15 dtk
+const NO_SPEECH_MS = 8000;  // tanpa suara 8 dtk -> auto close
 const RMS_THRESHOLD = 0.02;  // ambang suara
 
 // ===== KAMUS KOREKSI DOMAIN (lokal) =====
@@ -65,6 +65,16 @@ export function useVoiceInput({ onResult }) {
   const stopRef = useRef(null);
   const onResultRef = useRef(onResult);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isSupported = !!(
+        navigator.mediaDevices?.getUserMedia &&
+        (window.AudioContext || window.webkitAudioContext)
+      );
+      setSupported(isSupported);
+    }
+  }, []);
+
   useEffect(() => { onResultRef.current = onResult; });
   // Kalau tab pindah/background (HP lock, ganti app), matikan mic biar tidak di-kill browser
   useEffect(() => {
@@ -78,12 +88,11 @@ export function useVoiceInput({ onResult }) {
     setTimeout(() => setStatus(null), 2500);
   };
 
-  const process = async (blob, hasSpeech) => {
+  const processPCM = async (audio, hasSpeech) => {
     if (!hasSpeech) return;
     setProcessing(true);
     setStatus('Mentranskrip...');
     try {
-      const audio = await decodeAndResample(blob);
       const asrModel = await loadASR(setStatus);
       const out = await asrModel(audio, { language: 'id', task: 'transcribe' });
       const text = postProcessWhisper(out?.text || '');
@@ -95,6 +104,17 @@ export function useVoiceInput({ onResult }) {
       console.error('Voice error:', e);
       setProcessing(false);
       setStatus(null);
+      flash('Gagal mentranskrip 🙁');
+    }
+  };
+
+  const process = async (blob, hasSpeech) => {
+    if (!hasSpeech) return;
+    try {
+      const audio = await decodeAndResample(blob);
+      await processPCM(audio, hasSpeech);
+    } catch (e) {
+      console.error('Voice error:', e);
       flash('Gagal mentranskrip 🙁');
     }
   };
@@ -115,20 +135,69 @@ export function useVoiceInput({ onResult }) {
     src.connect(analyser);
     const buf = new Float32Array(analyser.fftSize);
 
-    const recorder = new MediaRecorder(stream);
-    const chunks = [];
+    const hasMediaRecorder = typeof window !== 'undefined' && !!window.MediaRecorder;
+    let recorder = null;
+    let chunks = [];
+    let scriptProcessor = null;
+    let pcmChunks = [];
+    const sampleRate = audioCtx.sampleRate;
+
     const state = { start: Date.now(), lastSound: Date.now(), hasSpeech: false };
 
-    recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    recorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
-      audioCtx.close();
-      await process(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }), state.hasSpeech);
-    };
+    if (hasMediaRecorder) {
+      recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        audioCtx.close();
+        await process(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }), state.hasSpeech);
+      };
+      recorder.start();
+    } else {
+      scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+      src.connect(scriptProcessor);
+      scriptProcessor.connect(audioCtx.destination);
+      scriptProcessor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        pcmChunks.push(new Float32Array(inputData));
+      };
+    }
 
-    recorder.start();
     setListening(true);
     setStatus('Mendengarkan...');
+
+    const stopFallback = async (shouldProcess) => {
+      if (scriptProcessor) {
+        scriptProcessor.disconnect();
+        src.disconnect();
+      }
+      stream.getTracks().forEach(t => t.stop());
+      audioCtx.close();
+
+      if (shouldProcess && state.hasSpeech) {
+        let totalLength = 0;
+        for (const chunk of pcmChunks) totalLength += chunk.length;
+        const mergedPcm = new Float32Array(totalLength);
+        let offset = 0;
+        for (const chunk of pcmChunks) {
+          mergedPcm.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        // Resample to 16kHz
+        const ratio = sampleRate / 16000;
+        const len = Math.floor(mergedPcm.length / ratio);
+        const out = new Float32Array(len);
+        for (let i = 0; i < len; i++) {
+          const s = Math.floor(i * ratio), e = Math.min(mergedPcm.length, Math.floor((i + 1) * ratio));
+          let sum = 0, c = 0;
+          for (let j = s; j < e; j++) { sum += mergedPcm[j]; c++; }
+          out[i] = c ? sum / c : 0;
+        }
+
+        await processPCM(out, true);
+      }
+    };
 
     const timer = setInterval(() => {
       analyser.getFloatTimeDomainData(buf);
@@ -145,19 +214,31 @@ export function useVoiceInput({ onResult }) {
       if (!state.hasSpeech && elapsed > NO_SPEECH_MS) {
         clearInterval(timer);
         setListening(false);
-        recorder.stop();
+        if (hasMediaRecorder) {
+          recorder.stop();
+        } else {
+          stopFallback(false);
+        }
         flash('Tidak terdengar apa-apa 🙁');
       } else if ((state.hasSpeech && (now - state.lastSound) > SILENCE_MS) || elapsed > MAX_MS) {
         clearInterval(timer);
         setListening(false);
-        recorder.stop();
+        if (hasMediaRecorder) {
+          recorder.stop();
+        } else {
+          stopFallback(true);
+        }
       }
     }, 200);
 
     stopRef.current = () => {
       clearInterval(timer);
       setListening(false);
-      recorder.stop();
+      if (hasMediaRecorder) {
+        recorder.stop();
+      } else {
+        stopFallback(true);
+      }
     };
   };
 
@@ -165,11 +246,18 @@ export function useVoiceInput({ onResult }) {
     if (processing) return;
     if (listening) { stopRef.current?.(); return; }
     if (!supported) {
-      flash('Browser tidak mendukung mic 🙁');
+      if (typeof window !== 'undefined' && window.isSecureContext === false) {
+        flash('Butuh koneksi aman (HTTPS) untuk mic 🙁');
+      } else {
+        flash('Browser tidak mendukung mic 🙁');
+      }
       return;
     }
     try { await start(); }
-    catch (e) { flash('Izin mic ditolak / tidak didukung 🙁'); }
+    catch (e) {
+      console.error('Error starting mic:', e);
+      flash('Izin mic ditolak / tidak didukung 🙁');
+    }
   };
 
   return { supported, listening, processing, status, toggleMic };
