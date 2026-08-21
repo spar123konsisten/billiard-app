@@ -2,7 +2,7 @@
 import { useRef, useState, useEffect } from 'react';
 
 // ===== KONFIGURASI =====
-const WHISPER_MODEL = 'Xenova/whisper-small';
+const WHISPER_MODEL = 'Xenova/whisper-tiny';
 const SILENCE_MS = 2000;  // diam 2 dtk -> auto stop+kirim
 const MAX_MS = 15000; // maks rekam 15 dtk
 const NO_SPEECH_MS = 8000;  // tanpa suara 8 dtk -> auto close
