@@ -2,7 +2,8 @@
 import { useRef, useState, useEffect } from 'react';
 
 // ===== KONFIGURASI =====
-const WHISPER_MODEL = 'Xenova/whisper-tiny';
+const MODEL_MOBILE  = 'Xenova/whisper-base';
+const MODEL_DESKTOP = 'Xenova/whisper-small';
 const SILENCE_MS = 2000;  // diam 2 dtk -> auto stop+kirim
 const MAX_MS = 15000; // maks rekam 15 dtk
 const NO_SPEECH_MS = 8000;  // tanpa suara 8 dtk -> auto close
@@ -31,9 +32,24 @@ function postProcessWhisper(raw) {
 let asr = null;
 async function loadASR(onStatus) {
   if (asr) return asr;
-  onStatus('Memuat model suara (sekali saja)...');
+  
+  // Deteksi perangkat
+  const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const modelName = isMobile ? MODEL_MOBILE : MODEL_DESKTOP;
+
+  onStatus('Menghubungkan asisten suara...');
   const tf = await import(/* webpackIgnore:true */ 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
-  asr = await tf.pipeline('automatic-speech-recognition', WHISPER_MODEL, { quantized: true });
+  
+  asr = await tf.pipeline('automatic-speech-recognition', modelName, {
+    quantized: true,
+    progress_callback: (data) => {
+      if (data.status === 'progress') {
+        onStatus(`Mengunduh asisten suara: ${Math.round(data.progress)}%`);
+      } else if (data.status === 'ready') {
+        onStatus('Menyiapkan model...');
+      }
+    }
+  });
   return asr;
 }
 
