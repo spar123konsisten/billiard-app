@@ -40,26 +40,32 @@ async function loadASR(onStatus) {
   onStatus('Menghubungkan asisten suara...');
   const tf = await import(/* webpackIgnore:true */ 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
 
-  // Konfigurasi thread WASM demi keamanan RAM di HP
-  tf.env.backends.onnx.wasm.proxy = true; // Jalankan AI di Web Worker agar thread utama tidak beku (mencegah Safari refresh paksa)
-  if (isMobile) {
-    tf.env.backends.onnx.wasm.numThreads = 1; // 1 thread di HP (sangat hemat RAM, bebas crash)
-  } else {
-    tf.env.backends.onnx.wasm.numThreads = 4; // 4 thread di Laptop (kecepatan maksimal)
-  }
+  // Batasi thread agar hemat RAM di HP (cegah Safari crash)
+  tf.env.backends.onnx.wasm.numThreads = isMobile ? 1 : 4;
 
+  let filesDone = 0;
+  let filesTotal = 0;
   asr = await tf.pipeline('automatic-speech-recognition', modelName, {
     quantized: true,
     progress_callback: (data) => {
-      if (data.status === 'progress') {
-        onStatus(`Mengunduh asisten suara: ${Math.round(data.progress)}%`);
+      if (data.status === 'initiate') {
+        filesTotal++;
+      } else if (data.status === 'progress') {
+        const pct = Math.round(data.progress ?? 0);
+        onStatus(`Mengunduh asisten suara: ${pct}%`);
+      } else if (data.status === 'done') {
+        filesDone++;
+        if (filesTotal > 0 && filesDone >= filesTotal) {
+          onStatus('Menyiapkan model, harap tunggu sebentar...');
+        }
       } else if (data.status === 'ready') {
-        onStatus('Menyiapkan model...');
+        onStatus(null); // Selesai, hilangkan status
       }
     }
   });
   return asr;
 }
+
 
 // ===== DECODE + RESAMPLE 16kHz =====
 async function decodeAndResample(blob) {
