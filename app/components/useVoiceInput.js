@@ -2,7 +2,7 @@
 import { useRef, useState, useEffect } from 'react';
 
 // ===== KONFIGURASI =====
-const MODEL_MOBILE  = 'Xenova/whisper-base';
+const MODEL_MOBILE  = 'Xenova/whisper-tiny';
 const MODEL_DESKTOP = 'Xenova/whisper-small';
 const SILENCE_MS = 2000;  // diam 2 dtk -> auto stop+kirim
 const MAX_MS = 15000; // maks rekam 15 dtk
