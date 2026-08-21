@@ -2,8 +2,9 @@
 import { useRef, useState, useEffect } from 'react';
 
 // ===== KONFIGURASI =====
-const MODEL_MOBILE = 'Xenova/whisper-small';
-const MODEL_DESKTOP = 'Xenova/whisper-small';
+// Model: onnx-community/whisper-small (INT4 quantized via Transformers.js v3)
+// Encoder: fp32 (presisi tinggi, akurat) | Decoder: q4 (ringan ~80MB total)
+const MODEL_ID = 'onnx-community/whisper-small';
 const SILENCE_MS = 2000;  // diam 2 dtk -> auto stop+kirim
 const MAX_MS = 15000; // maks rekam 15 dtk
 const NO_SPEECH_MS = 8000;  // tanpa suara 8 dtk -> auto close
@@ -33,20 +34,33 @@ let asr = null;
 async function loadASR(onStatus) {
   if (asr) return asr;
 
-  // Deteksi perangkat
   const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const modelName = isMobile ? MODEL_MOBILE : MODEL_DESKTOP;
 
   onStatus('Menghubungkan asisten suara...');
-  const tf = await import(/* webpackIgnore:true */ 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
 
-  // Batasi thread agar hemat RAM di HP (cegah Safari crash)
+  // Gunakan Transformers.js v3 (lebih efisien & mendukung WebGPU)
+  const tf = await import(/* webpackIgnore:true */ 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.1.2');
+
+  // Batasi thread WASM agar hemat RAM di HP
   tf.env.backends.onnx.wasm.numThreads = isMobile ? 1 : 4;
 
   let filesDone = 0;
   let filesTotal = 0;
-  asr = await tf.pipeline('automatic-speech-recognition', modelName, {
-    quantized: true,
+
+  // Coba WebGPU dulu (lebih ringan di HP - pakai GPU bukan RAM JS)
+  // Fallback ke WASM jika WebGPU tidak tersedia
+  const supportsWebGPU = typeof navigator !== 'undefined' && !!navigator.gpu;
+  const device = supportsWebGPU ? 'webgpu' : 'wasm';
+
+  // INT4 quantization: encoder fp32 (akurat), decoder q4 (ringan ~80MB total)
+  // Pada WASM fallback: gunakan q8 agar lebih stabil
+  const dtype = supportsWebGPU
+    ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
+    : { encoder_model: 'q8', decoder_model_merged: 'q8' };
+
+  asr = await tf.pipeline('automatic-speech-recognition', MODEL_ID, {
+    device,
+    dtype,
     progress_callback: (data) => {
       if (data.status === 'initiate') {
         filesTotal++;
@@ -59,12 +73,13 @@ async function loadASR(onStatus) {
           onStatus('Menyiapkan model, harap tunggu sebentar...');
         }
       } else if (data.status === 'ready') {
-        onStatus(null); // Selesai, hilangkan status
+        onStatus(null);
       }
     }
   });
   return asr;
 }
+
 
 
 // ===== DECODE + RESAMPLE 16kHz =====
