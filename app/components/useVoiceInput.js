@@ -32,15 +32,16 @@ function postProcessWhisper(raw) {
 let asr = null;
 async function loadASR(onStatus) {
   if (asr) return asr;
-  
+
   // Deteksi perangkat
   const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const modelName = isMobile ? MODEL_MOBILE : MODEL_DESKTOP;
 
   onStatus('Menghubungkan asisten suara...');
   const tf = await import(/* webpackIgnore:true */ 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
-  
+
   // Konfigurasi thread WASM demi keamanan RAM di HP
+  tf.env.backends.onnx.wasm.proxy = true; // Jalankan AI di Web Worker agar thread utama tidak beku (mencegah Safari refresh paksa)
   if (isMobile) {
     tf.env.backends.onnx.wasm.numThreads = 1; // 1 thread di HP (sangat hemat RAM, bebas crash)
   } else {
