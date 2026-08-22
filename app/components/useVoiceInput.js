@@ -2,15 +2,25 @@
 import { useRef, useState, useEffect } from 'react';
 
 // ===== KONFIGURASI =====
-// Model: onnx-community/whisper-small (INT4 quantized via Transformers.js v3)
-// Encoder: fp32 (presisi tinggi, akurat) | Decoder: q4 (ringan ~80MB total)
-const MODEL_ID = 'onnx-community/whisper-small';
-const SILENCE_MS = 2000;  // diam 2 dtk -> auto stop+kirim
-const MAX_MS = 15000; // maks rekam 15 dtk
-const NO_SPEECH_MS = 8000;  // tanpa suara 8 dtk -> auto close
-const RMS_THRESHOLD = 0.02;  // ambang suara
+const WHISPER_MODEL  = 'Xenova/whisper-small'; // Digunakan hanya di non-iOS (Chrome, Firefox, dll)
+const SILENCE_MS     = 2000;  // diam 2 dtk -> auto stop+kirim
+const MAX_MS         = 15000; // maks rekam 15 dtk
+const NO_SPEECH_MS   = 8000;  // tanpa suara 8 dtk -> auto close
+const RMS_THRESHOLD  = 0.02;  // ambang suara
 
-// ===== KAMUS KOREKSI DOMAIN (lokal) =====
+// ===== DETEKSI ENGINE =====
+// iOS Safari -> gunakan Web Speech API bawaan Apple (tidak crash, sangat akurat)
+// Browser lain -> gunakan Whisper lokal
+function detectEngine() {
+  if (typeof window === 'undefined') return 'none';
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const hasSpeechRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  if (isIOS && hasSpeechRecognition) return 'webspeech';
+  if (navigator.mediaDevices?.getUserMedia && (window.AudioContext || window.webkitAudioContext)) return 'whisper';
+  return 'none';
+}
+
+// ===== KAMUS KOREKSI DOMAIN =====
 const FIX = [
   [/\b(tiar|tir|tear|tierr)\b/g, 'tier'],
   [/\b(rin\s*tis|in\s*tis|rinti)\b/g, 'rintis'],
@@ -23,7 +33,7 @@ const FIX = [
   [/\b(jakartah)\b/g, 'jakarta'],
 ];
 
-function postProcessWhisper(raw) {
+function fixText(raw) {
   let t = ' ' + raw.toLowerCase().replace(/[?.!,]/g, ' ') + ' ';
   for (const [re, rep] of FIX) t = t.replace(re, ' ' + rep + ' ');
   return t.replace(/\s+/g, ' ').trim();
@@ -33,56 +43,23 @@ function postProcessWhisper(raw) {
 let asr = null;
 async function loadASR(onStatus) {
   if (asr) return asr;
-
-  const isMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-  onStatus('Menghubungkan asisten suara...');
-
-  // Gunakan Transformers.js v3 (lebih efisien & mendukung WebGPU)
-  const tf = await import(/* webpackIgnore:true */ 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.1.2');
-
-  // Batasi thread WASM agar hemat RAM di HP
-  tf.env.backends.onnx.wasm.numThreads = isMobile ? 1 : 4;
-
-  let filesDone = 0;
-  let filesTotal = 0;
-
-  // Coba WebGPU dulu (lebih ringan di HP - pakai GPU bukan RAM JS)
-  // Fallback ke WASM jika WebGPU tidak tersedia
-  const supportsWebGPU = typeof navigator !== 'undefined' && !!navigator.gpu;
-  const device = supportsWebGPU ? 'webgpu' : 'wasm';
-
-  // INT4 quantization: encoder fp32 (akurat), decoder q4 (ringan ~80MB total)
-  // Pada WASM fallback: gunakan q8 agar lebih stabil
-  const dtype = supportsWebGPU
-    ? { encoder_model: 'fp32', decoder_model_merged: 'q4' }
-    : { encoder_model: 'q8', decoder_model_merged: 'q8' };
-
-  asr = await tf.pipeline('automatic-speech-recognition', MODEL_ID, {
-    device,
-    dtype,
+  onStatus('Memuat model suara (sekali saja)...');
+  const tf = await import(/* webpackIgnore:true */ 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+  tf.env.backends.onnx.wasm.numThreads = 4;
+  let filesDone = 0, filesTotal = 0;
+  asr = await tf.pipeline('automatic-speech-recognition', WHISPER_MODEL, {
+    quantized: true,
     progress_callback: (data) => {
-      if (data.status === 'initiate') {
-        filesTotal++;
-      } else if (data.status === 'progress') {
-        const pct = Math.round(data.progress ?? 0);
-        onStatus(`Mengunduh asisten suara: ${pct}%`);
-      } else if (data.status === 'done') {
-        filesDone++;
-        if (filesTotal > 0 && filesDone >= filesTotal) {
-          onStatus('Menyiapkan model, harap tunggu sebentar...');
-        }
-      } else if (data.status === 'ready') {
-        onStatus(null);
-      }
+      if (data.status === 'initiate') filesTotal++;
+      else if (data.status === 'progress') onStatus(`Mengunduh model suara: ${Math.round(data.progress ?? 0)}%`);
+      else if (data.status === 'done') { filesDone++; if (filesDone >= filesTotal) onStatus('Menyiapkan model...'); }
+      else if (data.status === 'ready') onStatus(null);
     }
   });
   return asr;
 }
 
-
-
-// ===== DECODE + RESAMPLE 16kHz =====
+// ===== DECODE + RESAMPLE 16kHz (untuk Whisper) =====
 async function decodeAndResample(blob) {
   const arr = await blob.arrayBuffer();
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -103,25 +80,24 @@ async function decodeAndResample(blob) {
 }
 
 export function useVoiceInput({ onResult }) {
-  const [listening, setListening] = useState(false);
+  const [listening, setListening]   = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [status, setStatus] = useState(null);
-  const [supported, setSupported] = useState(false);
-  const stopRef = useRef(null);
+  const [status, setStatus]         = useState(null);
+  const [supported, setSupported]   = useState(false);
+  const [engine, setEngine]         = useState('none'); // 'webspeech' | 'whisper' | 'none'
+  const stopRef    = useRef(null);
   const onResultRef = useRef(onResult);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const isSupported = !!(
-        navigator.mediaDevices?.getUserMedia &&
-        (window.AudioContext || window.webkitAudioContext)
-      );
-      setSupported(isSupported);
+      const eng = detectEngine();
+      setEngine(eng);
+      setSupported(eng !== 'none');
     }
   }, []);
 
   useEffect(() => { onResultRef.current = onResult; });
-  // Kalau tab pindah/background (HP lock, ganti app), matikan mic biar tidak di-kill browser
+
   useEffect(() => {
     const onHide = () => { if (document.hidden) stopRef.current?.(); };
     document.addEventListener('visibilitychange', onHide);
@@ -133,6 +109,35 @@ export function useVoiceInput({ onResult }) {
     setTimeout(() => setStatus(null), 2500);
   };
 
+  // ===== ENGINE 1: Web Speech API (iOS Safari) =====
+  const startWebSpeech = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SR();
+    recognition.lang = 'id-ID';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart  = () => { setListening(true); setStatus('Mendengarkan...'); };
+    recognition.onend    = () => { setListening(false); setStatus(null); };
+    recognition.onerror  = (e) => {
+      setListening(false);
+      if (e.error === 'no-speech') flash('Tidak terdengar apa-apa 🙁');
+      else if (e.error === 'not-allowed') flash('Izin mic ditolak 🙁');
+      else flash('Gagal mendengarkan 🙁');
+    };
+    recognition.onresult = (e) => {
+      const raw = e.results[0]?.[0]?.transcript || '';
+      const text = fixText(raw);
+      if (text) onResultRef.current(text);
+      else flash('Tidak terdengar jelas 🙁');
+    };
+
+    recognition.start();
+    stopRef.current = () => { recognition.stop(); };
+  };
+
+  // ===== ENGINE 2: Whisper Lokal (non-iOS) =====
   const processPCM = async (audio, hasSpeech) => {
     if (!hasSpeech) return;
     setProcessing(true);
@@ -140,7 +145,7 @@ export function useVoiceInput({ onResult }) {
     try {
       const asrModel = await loadASR(setStatus);
       const out = await asrModel(audio, { language: 'id', task: 'transcribe' });
-      const text = postProcessWhisper(out?.text || '');
+      const text = fixText(out?.text || '');
       setProcessing(false);
       setStatus(null);
       if (text) onResultRef.current(text);
@@ -153,7 +158,7 @@ export function useVoiceInput({ onResult }) {
     }
   };
 
-  const process = async (blob, hasSpeech) => {
+  const processBlob = async (blob, hasSpeech) => {
     if (!hasSpeech) return;
     try {
       const audio = await decodeAndResample(blob);
@@ -164,13 +169,9 @@ export function useVoiceInput({ onResult }) {
     }
   };
 
-  const start = async () => {
+  const startWhisper = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     const AC = window.AudioContext || window.webkitAudioContext;
     const audioCtx = new AC();
@@ -180,13 +181,10 @@ export function useVoiceInput({ onResult }) {
     src.connect(analyser);
     const buf = new Float32Array(analyser.fftSize);
 
-    const hasMediaRecorder = typeof window !== 'undefined' && !!window.MediaRecorder;
-    let recorder = null;
-    let chunks = [];
-    let scriptProcessor = null;
-    let pcmChunks = [];
+    const hasMediaRecorder = !!window.MediaRecorder;
+    let recorder = null, chunks = [];
+    let scriptProcessor = null, pcmChunks = [];
     const sampleRate = audioCtx.sampleRate;
-
     const state = { start: Date.now(), lastSound: Date.now(), hasSpeech: false };
 
     if (hasMediaRecorder) {
@@ -195,51 +193,38 @@ export function useVoiceInput({ onResult }) {
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
         audioCtx.close();
-        await process(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }), state.hasSpeech);
+        await processBlob(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }), state.hasSpeech);
       };
       recorder.start();
     } else {
       scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
       src.connect(scriptProcessor);
       scriptProcessor.connect(audioCtx.destination);
-      scriptProcessor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        pcmChunks.push(new Float32Array(inputData));
-      };
+      scriptProcessor.onaudioprocess = (e) => pcmChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
     }
 
     setListening(true);
     setStatus('Mendengarkan...');
 
     const stopFallback = async (shouldProcess) => {
-      if (scriptProcessor) {
-        scriptProcessor.disconnect();
-        src.disconnect();
-      }
+      if (scriptProcessor) { scriptProcessor.disconnect(); src.disconnect(); }
       stream.getTracks().forEach(t => t.stop());
       audioCtx.close();
-
       if (shouldProcess && state.hasSpeech) {
-        let totalLength = 0;
-        for (const chunk of pcmChunks) totalLength += chunk.length;
-        const mergedPcm = new Float32Array(totalLength);
+        let totalLen = 0;
+        for (const c of pcmChunks) totalLen += c.length;
+        const merged = new Float32Array(totalLen);
         let offset = 0;
-        for (const chunk of pcmChunks) {
-          mergedPcm.set(chunk, offset);
-          offset += chunk.length;
-        }
-
-        // Resample to 16kHz
+        for (const c of pcmChunks) { merged.set(c, offset); offset += c.length; }
         const ratio = sampleRate / 16000;
-        const len = Math.floor(mergedPcm.length / ratio);
+        const len = Math.floor(merged.length / ratio);
         const out = new Float32Array(len);
         for (let i = 0; i < len; i++) {
-          const s = Math.floor(i * ratio), e = Math.min(mergedPcm.length, Math.floor((i + 1) * ratio));
-          let sum = 0, c = 0;
-          for (let j = s; j < e; j++) { sum += mergedPcm[j]; c++; }
-          out[i] = c ? sum / c : 0;
+          const s = Math.floor(i * ratio), e = Math.min(merged.length, Math.floor((i + 1) * ratio));
+          let sum = 0, cnt = 0;
+          for (let j = s; j < e; j++) { sum += merged[j]; cnt++; }
+          out[i] = cnt ? sum / cnt : 0;
         }
-
         await processPCM(out, true);
       }
     };
@@ -250,60 +235,45 @@ export function useVoiceInput({ onResult }) {
       for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
       const rms = Math.sqrt(sum / buf.length);
       const now = Date.now();
-      if (rms > RMS_THRESHOLD) {
-        state.hasSpeech = true;
-        state.lastSound = now;
-      }
+      if (rms > RMS_THRESHOLD) { state.hasSpeech = true; state.lastSound = now; }
       const elapsed = now - state.start;
-
       if (!state.hasSpeech && elapsed > NO_SPEECH_MS) {
-        clearInterval(timer);
-        setListening(false);
-        if (hasMediaRecorder) {
-          recorder.stop();
-        } else {
-          stopFallback(false);
-        }
+        clearInterval(timer); setListening(false);
+        hasMediaRecorder ? recorder.stop() : stopFallback(false);
         flash('Tidak terdengar apa-apa 🙁');
       } else if ((state.hasSpeech && (now - state.lastSound) > SILENCE_MS) || elapsed > MAX_MS) {
-        clearInterval(timer);
-        setListening(false);
-        if (hasMediaRecorder) {
-          recorder.stop();
-        } else {
-          stopFallback(true);
-        }
+        clearInterval(timer); setListening(false);
+        hasMediaRecorder ? recorder.stop() : stopFallback(true);
       }
     }, 200);
 
     stopRef.current = () => {
-      clearInterval(timer);
-      setListening(false);
-      if (hasMediaRecorder) {
-        recorder.stop();
-      } else {
-        stopFallback(true);
-      }
+      clearInterval(timer); setListening(false);
+      hasMediaRecorder ? recorder.stop() : stopFallback(true);
     };
   };
 
+  // ===== TOGGLE MIC =====
   const toggleMic = async () => {
     if (processing) return;
     if (listening) { stopRef.current?.(); return; }
     if (!supported) {
-      if (typeof window !== 'undefined' && window.isSecureContext === false) {
-        flash('Butuh koneksi aman (HTTPS) untuk mic 🙁');
-      } else {
-        flash('Browser tidak mendukung mic 🙁');
-      }
+      flash(window.isSecureContext === false
+        ? 'Butuh HTTPS untuk mic 🙁'
+        : 'Browser tidak mendukung mic 🙁');
       return;
     }
-    try { await start(); }
-    catch (e) {
+    try {
+      if (engine === 'webspeech') {
+        startWebSpeech(); // iOS Safari: instan, tidak perlu download
+      } else {
+        await startWhisper(); // Browser lain: Whisper lokal
+      }
+    } catch (e) {
       console.error('Error starting mic:', e);
       flash('Izin mic ditolak / tidak didukung 🙁');
     }
   };
 
-  return { supported, listening, processing, status, toggleMic };
+  return { supported, listening, processing, status, toggleMic, engine };
 }
